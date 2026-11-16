@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-time setup for Lick4MyHorn on an Apple Silicon Mac.
+# One-time setup for Licksmith on an Apple Silicon Mac.
 # Run from the project folder:  bash setup_mac.sh
 set -euo pipefail
 cd "$(dirname "$0")"

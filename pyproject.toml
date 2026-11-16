@@ -26,7 +26,8 @@ audio = [
 ]
 
 [project.scripts]
-l4mh = "lick4myhorn.cli:main"
+licksmith = "lick4myhorn.cli:main"
+l4mh = "lick4myhorn.cli:main"   # the old name still works
 
 [build-system]
 requires = ["setuptools>=61"]
@@ -36,4 +37,4 @@ build-backend = "setuptools.build_meta"
 packages = ["lick4myhorn"]
 
 [tool.setuptools.package-data]
-lick4myhorn = ["static/*"]
+lick4myhorn = ["static/*", "static/brand/*"]

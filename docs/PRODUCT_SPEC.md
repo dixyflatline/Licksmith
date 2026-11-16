@@ -1,4 +1,4 @@
-# Lick4MyHorn: Product Specification
+# Licksmith: Product Specification
 
 Version 1.0, written from the working implementation (November 2026).
 Purpose of this document: give another engineer or AI coding agent everything needed to rebuild the application from scratch, with the same behaviour, data formats and screens. Where a number, default, name or rule matters it is stated exactly. Where the original implementation made a judgement call, the reason is given so a rebuild can keep the intent.
@@ -7,7 +7,7 @@ Purpose of this document: give another engineer or AI coding agent everything ne
 
 ## 1. Product summary
 
-Lick4MyHorn is a **personal, local, single-user web app** for a B♭ trumpet player who is learning jazz vocabulary ("licks"). It runs on the player's own Mac, is started from a terminal (`l4mh serve`), and is used in a browser at `http://127.0.0.1:8765`. There are no accounts, no cloud, no telemetry. Everything lives in one folder (`library/`) in open formats (MusicXML, MIDI, JSON, CSV, SQLite) so the player can back it up by copying the folder.
+Licksmith is a **personal, local, single-user web app** for a B♭ trumpet player who is learning jazz vocabulary ("licks"). It runs on the player's own Mac, is started from a terminal (`licksmith serve`), and is used in a browser at `http://127.0.0.1:8765`. There are no accounts, no cloud, no telemetry. Everything lives in one folder (`library/`) in open formats (MusicXML, MIDI, JSON, CSV, SQLite) so the player can back it up by copying the folder.
 
 It does five jobs:
 
@@ -50,9 +50,9 @@ The design priority is **minimising human effort and keeping the human in contro
 | Audio tools | `ffmpeg` (convert, pitch shift, time stretch), `yt-dlp` (download), `librosa` + `soundfile` (beat tracking), `pretty_midi`, `numpy` |
 | Transcription model | `muscriptor` ≥ 0.4.0 (Kyutai × Mirelo; code MIT, weights CC BY-NC 4.0; weights require a free Hugging Face login and accepting the licence per model size) |
 | Vision (optional) | DeepSeek or Anthropic vision API to read a screenshot of sheet music into ABC (Section 10) |
-| CLI | `l4mh` console script (`lick4myhorn.cli:main`) |
+| CLI | `licksmith` console script (`lick4myhorn.cli:main`; `l4mh` kept as an alias) |
 
-**Run model.** `l4mh serve` starts Uvicorn on `127.0.0.1:8765`, opens the browser, and stays in the foreground until Ctrl-C. The project root is `<project>/`, the data root `<project>/library/`. Long jobs (transcription) run in a background thread inside the server process; **stopping the server stops the job** and the UI warns about this.
+**Run model.** `licksmith serve` starts Uvicorn on `127.0.0.1:8765`, opens the browser, and stays in the foreground until Ctrl-C. The project root is `<project>/`, the data root `<project>/library/`. Long jobs (transcription) run in a background thread inside the server process; **stopping the server stops the job** and the UI warns about this.
 
 **Setup script** (`setup_mac.sh`): installs `ffmpeg`, `uv`, `fluid-synth` via Homebrew; creates a Python 3.12 venv with `uv`; installs the package with the `audio` extras; checks for MuseScore 4; walks the user through the Hugging Face login; runs the offline self-test.
 
@@ -541,17 +541,17 @@ GET  /api/sound ; POST /api/render ; GET /api/stats ; POST /api/open
 
 ---
 
-## 17. CLI (`l4mh`)
+## 17. CLI (`licksmith`, alias `l4mh`)
 
 ```
-l4mh serve [--port]
-l4mh licks import <file.musicxml> | l4mh licks list
-l4mh charts import <playlist.html|txt> | l4mh charts show "<title>"
-l4mh fetch <work> <url>               download audio
-l4mh gridcheck <work>                 writes grid_check.wav and bars.csv
-l4mh transcribe <work> [--engine muscriptor --model medium|large | --engine midi --midi f.mid --name n]
-l4mh build <work> [--engine N] [--simplicity 1.0] [--concert]
-l4mh bench <work> --book benchmarks/<x>.musicxml
+licksmith serve [--port]
+licksmith licks import <file.musicxml> | licksmith licks list
+licksmith charts import <playlist.html|txt> | licksmith charts show "<title>"
+licksmith fetch <work> <url>               download audio
+licksmith gridcheck <work>                 writes grid_check.wav and bars.csv
+licksmith transcribe <work> [--engine muscriptor --model medium|large | --engine midi --midi f.mid --name n]
+licksmith build <work> [--engine N] [--simplicity 1.0] [--concert]
+licksmith bench <work> --book benchmarks/<x>.musicxml
 ```
 
 `python -m lick4myhorn.selftest` is an offline end-to-end test: generate a known swing solo (a blues), humanise it into "performed" seconds, run grid → quantize → MusicXML → bench, and require near-zero fixes.

@@ -1,4 +1,4 @@
-/* Lick4MyHorn playback: a small WebAudio band (trumpet-ish lead, rootless piano comping,
+/* Licksmith playback: a small WebAudio band (trumpet-ish lead, rootless piano comping,
    walking bass, ride + hi-hat) and a cycle sequencer for 12-key drills and whole tunes.
    All pitches arriving here are concert pitch (that is what sounds). */
 "use strict";

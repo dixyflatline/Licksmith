@@ -1,18 +1,18 @@
-"""Command line: l4mh <command> ...   (run from the project folder)
+"""Command line: licksmith <command> ...   (run from the project folder)
 
-  l4mh new <work> --title T --artist A --tune "iReal title"   create library/works/<work>/form.json
-  l4mh fetch <work> <url>                                      download audio -> audio.wav
-  l4mh charts import <playlist.html>                           import iReal playlists
-  l4mh charts show "<title>"                                   print a tune's chords
-  l4mh transcribe <work> [--engine muscriptor --model medium | --engine midi --midi file.mid]
-  l4mh gridcheck <work>                                        clicks over the recording + bars.csv
-  l4mh build <work> [--engine NAME] [--simplicity 1.0]         -> solo.musicxml + solo.mid
-  l4mh merge <work> --engines A,B [--name merged]               fill A's empty bars from B
-  l4mh bench <work> --book book.musicxml [--engine NAME]       compare with the published solo
+  licksmith new <work> --title T --artist A --tune "iReal title"   create library/works/<work>/form.json
+  licksmith fetch <work> <url>                                      download audio -> audio.wav
+  licksmith charts import <playlist.html>                           import iReal playlists
+  licksmith charts show "<title>"                                   print a tune's chords
+  licksmith transcribe <work> [--engine muscriptor --model medium | --engine midi --midi file.mid]
+  licksmith gridcheck <work>                                        clicks over the recording + bars.csv
+  licksmith build <work> [--engine NAME] [--simplicity 1.0]         -> solo.musicxml + solo.mid
+  licksmith merge <work> --engines A,B [--name merged]               fill A's empty bars from B
+  licksmith bench <work> --book book.musicxml [--engine NAME]       compare with the published solo
 
-  l4mh serve [--port 8765]                                     lick library + practice web app
-  l4mh licks import <file.musicxml> [--mode auto|sheet|single|range --bars 17-20]
-  l4mh licks list
+  licksmith serve [--port 8765]                                     lick library + practice web app
+  licksmith licks import <file.musicxml> [--mode auto|sheet|single|range --bars 17-20]
+  licksmith licks list
 """
 from __future__ import annotations
 
@@ -90,7 +90,7 @@ def cmd_transcribe(a):
     if a.engine == "muscriptor":
         audio = _audio(a.work)
         if audio is None:
-            raise SystemExit("No audio.wav yet: run l4mh fetch first.")
+            raise SystemExit("No audio.wav yet: run licksmith fetch first.")
         ensemble = a.ensemble.split(",") if a.ensemble else form.data.get("solo_ensemble") or form.data.get("ensemble", [])
         window = None
         if a.solo_only:
@@ -113,7 +113,7 @@ def cmd_transcribe(a):
     else:
         raise SystemExit(f"Unknown engine {a.engine}")
     print(f"Notes: {p}")
-    print(f"Next: l4mh build {a.work} --engine {out.name}")
+    print(f"Next: licksmith build {a.work} --engine {out.name}")
 
 
 def _grid(name: str, form):
@@ -230,7 +230,7 @@ def cmd_merge(a):
     filled = sorted(k for k, v in source.items() if v != names[0])
     print(f"{len(merged)} notes -> {out}/notes.json")
     print(f"Bars (score numbering) taken from {', '.join(names[1:])}: {filled or 'none'}")
-    print(f"Next: l4mh build {a.work} --engine {a.name}")
+    print(f"Next: licksmith build {a.work} --engine {a.name}")
 
 
 def cmd_bench(a):
@@ -272,7 +272,7 @@ def cmd_licks(a):
 
 
 def main(argv=None):
-    p = argparse.ArgumentParser(prog="l4mh", description="Lick4MyHorn")
+    p = argparse.ArgumentParser(prog="licksmith", description="Licksmith")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     s = sub.add_parser("new"); s.add_argument("work"); s.add_argument("--title"); s.add_argument("--artist")

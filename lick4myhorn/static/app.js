@@ -1,4 +1,4 @@
-/* Lick4MyHorn web UI (no build step, no external libraries). */
+/* Licksmith web UI (no build step, no external libraries). */
 "use strict";
 
 const $ = (s, el = document) => el.querySelector(s);

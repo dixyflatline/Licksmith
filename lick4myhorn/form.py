@@ -70,7 +70,7 @@ def load_form(path: Path, charts_json: Path | None = None) -> Form:
         if charts_json is None or not Path(charts_json).exists():
             raise FileNotFoundError(
                 "form.json names a tune but has no 'chorus' chords, and no iReal charts are imported yet. "
-                "Run: l4mh charts import <playlist.html>"
+                "Run: licksmith charts import <playlist.html>"
             )
         from .ireal import find_tune
 

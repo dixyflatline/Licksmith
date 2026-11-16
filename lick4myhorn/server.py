@@ -1,4 +1,4 @@
-"""Local web app: `l4mh serve` then open http://127.0.0.1:8765
+"""Local web app: `licksmith serve` then open http://127.0.0.1:8765
 
 All endpoints are async on purpose: it is a single-user app, so running everything on one thread
 keeps SQLite and music21 simple and safe.
@@ -31,7 +31,7 @@ def create_app(root: Path) -> FastAPI:
     from .render import Renderer
 
     renderer = Renderer(root)
-    app = FastAPI(title="Lick4MyHorn")
+    app = FastAPI(title="Licksmith")
     app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
 
     def _lick_summary(lk: dict) -> dict:
@@ -47,6 +47,10 @@ def create_app(root: Path) -> FastAPI:
             return lib.lick(lick_id)
         except KeyError:
             raise HTTPException(404, "No such lick")
+
+    @app.get("/favicon.ico", include_in_schema=False)
+    async def favicon():
+        return FileResponse(STATIC / "brand" / "favicon.ico", media_type="image/x-icon")
 
     @app.get("/", response_class=HTMLResponse)
     async def index():
@@ -553,5 +557,5 @@ def serve(root: Path, host: str = "127.0.0.1", port: int = 8765, open_browser: b
     url = f"http://{host}:{port}"
     if open_browser:
         threading.Timer(1.2, lambda: webbrowser.open(url)).start()
-    print(f"Lick4MyHorn running at {url}  (Ctrl-C to stop)")
+    print(f"Licksmith running at {url}  (Ctrl-C to stop)")
     uvicorn.run(app, host=host, port=port, log_level="warning")
