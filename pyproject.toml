@@ -1,0 +1,39 @@
+[project]
+name = "lick4myhorn"
+version = "0.1.0"
+description = "Personal jazz lick library and practice app for trumpet"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "music21>=9.1",
+    "pretty_midi>=0.2.10",
+    "numpy",
+    "pyRealParser>=0.1.0",
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "python-multipart>=0.0.9",
+    "verovio>=4.0",
+    "fsrs>=6.0",
+    "pyfluidsynth>=1.3",
+]
+
+[project.optional-dependencies]
+# Heavy pieces used only on the Mac (audio download, transcription, beat tracking).
+audio = [
+    "yt-dlp",
+    "librosa>=0.10",
+    "soundfile",
+    "muscriptor>=0.4.0",
+]
+
+[project.scripts]
+l4mh = "lick4myhorn.cli:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["lick4myhorn"]
+
+[tool.setuptools.package-data]
+lick4myhorn = ["static/*"]

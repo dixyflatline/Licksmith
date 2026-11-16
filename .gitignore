@@ -1,0 +1,14 @@
+# Personal data: downloaded recordings, transcriptions of other people's solos, practice history, API keys
+library/
+# Local environment and tools
+.venv/
+tools/
+*.egg-info/
+__pycache__/
+*.pyc
+.DS_Store
+# Scans/OCR of a published book (copyrighted)
+benchmarks/
+# Secrets
+secrets.json
+.env
