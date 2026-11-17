@@ -460,9 +460,10 @@ async function alignOpen(work, usable) {
   }
   function barHtml(b) {
     const bad = (b.issues || []).length ? `<div class="al-issue">${esc(b.issues.map(i => i.msg).join("; "))}</div>` : "";
-    return `<div class="al-bar-head"><b class="al-pick" title="Tick this bar for the lick. Click the bar next to it to add it (up to 3 in a row), click an end bar again to remove it">${b.n}</b><span class="muted small">${b.chorus ? `ch ${b.chorus} · bar ${A.D.chart_offset ? (b.bar_in_chorus - 1 + A.D.chart_offset) % A.D.chart_len + 1 : b.bar_in_chorus}` : ""}</span>
+    return `<div class="al-bar-head" title="Tick this bar for the lick. Click the bar next to it to add it (up to 3 in a row), click an end bar again to remove it"><b class="al-pick">${b.n}</b><span class="muted small">${b.chorus ? `ch ${b.chorus} · bar ${A.D.chart_offset ? (b.bar_in_chorus - 1 + A.D.chart_offset) % A.D.chart_len + 1 : b.bar_in_chorus}` : ""}</span>
+        <span class="spacer"></span>
         <span class="al-btns"><button class="al-ga" title="Play this bar (or the whole picked lick): the recording">A ▶</button><button class="al-gm" title="Play this bar (or the whole picked lick): your notes as MIDI">M ▶</button></span>
-        <span class="spacer"></span>${b.locked ? `<span class="chip user">locked</span><button class="ghost al-unlock" title="Go back to the automatic transcription">auto</button>` : ""}</div>
+        ${b.locked ? `<span class="chip user">locked</span><button class="ghost al-unlock" title="Go back to the automatic transcription">auto</button>` : ""}</div>
       <div class="paper al-svg"></div>
       <input class="al-abc" spellcheck="false" value="${esc(b.abc)}">${bad}`;
   }
@@ -504,7 +505,8 @@ async function alignOpen(work, usable) {
     const holder = $(".al-svg", el);
     holder.innerHTML = await svgOf(b);
     bareSvg(b, holder);
-    $(".al-pick", el).onclick = e => { defocus(); pick(b.n, e.shiftKey); };
+    // the whole header strip is the tap target (box, number, chorus text, empty space); only its buttons do something else
+    $(".al-bar-head", el).onclick = e => { if (e.target.closest("button")) return; defocus(); pick(b.n, e.shiftKey); };
     wireNotes(b, holder);
     // inside a joined selection (2-3 bars picked for a lick) these play the whole lick, otherwise just this bar
     const span = () => (A.pick && A.pick.b > A.pick.a && b.n >= A.pick.a && b.n <= A.pick.b) ? A.pick : { a: b.n, b: b.n };

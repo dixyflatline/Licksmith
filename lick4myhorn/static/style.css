@@ -211,7 +211,10 @@ button.listen { padding: 4px 9px; font-size: 13px; border-color: var(--line); co
 .al-pad { visibility: hidden; }
 .al-bar.locked { border-color: var(--brass-dim); }
 .al-bar.now { outline: 2px solid #ff5d5d; }
-.al-bar-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.al-bar-head { display: flex; align-items: center; gap: 8px; margin: -4px -4px 4px; padding: 4px; min-height: 36px; border-radius: 6px;
+  cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+.al-bar-head:hover { background: var(--panel-2); }
+.al-bar.picked .al-bar-head { background: rgba(210, 35, 27, .16); }
 .al-bar-head .spacer { flex: 1; }
 .al-svg { min-height: 70px; padding: 2px; }
 .al-svg g.note { cursor: ns-resize; }
@@ -221,8 +224,7 @@ button.listen { padding: 4px 9px; font-size: 13px; border-color: var(--line); co
 .al-abc { width: 100%; box-sizing: border-box; margin-top: 6px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
 .al-issue { color: var(--again); font-size: 12px; margin-top: 4px; }
 .al-bar.picked { border-color: var(--red); box-shadow: 0 0 0 1px var(--red); }
-.al-pick { color: var(--brass); cursor: pointer; padding: 0 4px; border-radius: 4px; }
-.al-pick:hover { background: var(--panel-2); }
+.al-pick { color: var(--brass); padding: 0 4px; }
 .al-pick::before { content: "\2610\00a0"; color: var(--brass); font-weight: 400; }
 .al-bar.picked .al-pick::before { content: "\2611\00a0"; color: var(--red); }
 .al-bar.picked .al-pick { color: var(--text); }
@@ -302,7 +304,8 @@ img, svg, canvas { max-width: 100%; }
   input, select, textarea { font-size: 16px; min-height: 38px; }
   input[type=checkbox] { width: 20px; height: 20px; min-height: 0; }
   .key { min-width: 56px; padding: 10px 8px; }
-  .al-pick { padding: 6px 8px; }
+  .al-bar-head { min-height: 46px; padding: 6px; margin: -6px -6px 4px; }
+  .al-bar-head .small { font-size: 14px; }
   .tune-list div { padding: 11px 12px; }
   nav.tabs a { padding: 10px 14px; }
   .ritem { padding: 10px 4px; }
