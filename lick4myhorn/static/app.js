@@ -718,8 +718,15 @@ VIEWS.library = async () => {
     try { localStorage.setItem("libSort", JSON.stringify(sort)); } catch (e) { /* storage blocked */ }
     draw();
   });
+  // Search and filters are kept while you visit other tabs (and across a reload within this browser tab).
+  const FIELDS = { fText: "value", fFn: "value", fState: "value", fTag: "value", fFav: "checked", fArch: "checked" };
+  let saved = S.libFilter;
+  if (!saved) { try { saved = JSON.parse(sessionStorage.getItem("libFilter")); } catch (e) { /* none */ } }
+  for (const [id, prop] of Object.entries(FIELDS)) if (saved && saved[id] !== undefined) $("#" + id)[prop] = saved[id];
   const draw = () => {
     markSort();
+    S.libFilter = Object.fromEntries(Object.entries(FIELDS).map(([id, prop]) => [id, $("#" + id)[prop]]));
+    try { sessionStorage.setItem("libFilter", JSON.stringify(S.libFilter)); } catch (e) { /* storage blocked */ }
     const q = $("#fText").value.toLowerCase(), fn = $("#fFn").value, st = $("#fState").value, tg = $("#fTag").value;
     const rows = sortRows(licks.filter(l => (!q || [l.number, l.label, l.artist, l.tune, l.comment, l.source, ...l.all_tags].join(" ").toLowerCase().includes(q))
       && (!fn || l.function === fn) && (!st || l.state === st) && (!tg || l.all_tags.includes(tg))
