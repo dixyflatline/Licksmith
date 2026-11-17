@@ -24,6 +24,7 @@ a { color: var(--brass); }
 header.top {
   display: flex; align-items: center; gap: 28px; padding: 0 24px; height: 56px;
   border-bottom: 1px solid var(--line); background: #181a20; position: sticky; top: 0; z-index: 5;
+  padding-left: max(24px, env(safe-area-inset-left)); padding-right: max(24px, env(safe-area-inset-right));
 }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .01em; font-size: 19px;
   color: var(--text); text-decoration: none; }
@@ -54,7 +55,9 @@ h3 { font-size: 15px; margin: 0 0 8px; }
 .grid.cols-2 { grid-template-columns: 1fr 1fr; }
 .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
 .grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
-@media (max-width: 900px) { .grid.cols-2, .grid.cols-3, .grid.cols-4 { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .grid.cols-2, .grid.cols-3, .grid.cols-4 { grid-template-columns: minmax(0, 1fr); } }
+.grid > *, .row > .grow { min-width: 0; }
+@media (max-width: 900px) { .grid > [style*="grid-column"], .preview-item .fields > [style*="grid-column"] { grid-column: auto !important; } }
 
 button, .btn {
   background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
@@ -70,6 +73,7 @@ button.danger { color: var(--again); }
 button:disabled { opacity: .45; cursor: default; }
 button.big { padding: 12px 22px; font-size: 16px; }
 input, select, textarea {
+  max-width: 100%;
   background: #12141a; color: var(--text); border: 1px solid var(--line); border-radius: 7px;
   padding: 7px 10px; font: inherit;
 }
@@ -200,7 +204,7 @@ button.listen { padding: 4px 9px; font-size: 13px; border-color: var(--line); co
 
 /* Align tab */
 .al-tl { position: relative; overflow-x: auto; overflow-y: hidden; border: 1px solid var(--line); border-radius: 8px; background: #14161b; }
-.al-tl canvas { position: sticky; left: 0; top: 0; display: block; margin-top: -1px; }
+.al-tl canvas { touch-action: pan-x pan-y; position: sticky; left: 0; top: 0; display: block; margin-top: -1px; }
 .al-bars { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 @media (max-width: 900px) { .al-bars { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .al-bar { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; min-width: 0; }
@@ -228,7 +232,7 @@ button.listen { padding: 4px 9px; font-size: 13px; border-color: var(--line); co
 .al-btns button { min-width: 52px; font-weight: 700; }
 .al-btns button:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .al-btns button:last-child { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -1px; }
-.al-sticky { position: sticky; top: 56px; z-index: 4; box-shadow: 0 6px 14px rgba(0,0,0,.45); }
+.al-sticky { position: sticky; top: var(--hdr-h, 56px); z-index: 4; box-shadow: 0 6px 14px rgba(0,0,0,.45); }
 .al-bar { scroll-margin-top: var(--al-top, 0px); }
 .al-svg g.rest.sel *, .al-svg g.mRest.sel * { fill: var(--red); stroke: var(--red); }
 .al-svg g.rest, .al-svg g.mRest { cursor: pointer; }
@@ -283,3 +287,108 @@ details.rsec summary { cursor: pointer; }
 .rday i { width: 14px; height: 14px; border-radius: 50%; background: var(--line); display: block; }
 .rday.some i { background: var(--brass-dim); }
 .rday.full i { background: var(--good); }
+
+/* ------------------------------------------------------------------ phones and tablets */
+html { -webkit-text-size-adjust: 100%; }
+code { overflow-wrap: anywhere; }
+body { overflow-x: hidden; }
+img, svg, canvas { max-width: 100%; }
+.tablecard { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* touch screens: finger-sized targets, and 16px inputs so iOS doesn't zoom in on focus */
+@media (pointer: coarse) {
+  button, .btn { min-height: 40px; }
+  button.ghost, .al-btns button { min-height: 36px; }
+  input, select, textarea { font-size: 16px; min-height: 38px; }
+  input[type=checkbox] { width: 20px; height: 20px; min-height: 0; }
+  .key { min-width: 56px; padding: 10px 8px; }
+  .al-pick { padding: 6px 8px; }
+  .tune-list div { padding: 11px 12px; }
+  nav.tabs a { padding: 10px 14px; }
+  .ritem { padding: 10px 4px; }
+}
+
+/* tablets and small laptops */
+@media (max-width: 1000px) {
+  main { padding: 18px 16px; }
+  header.top { flex-wrap: wrap; height: auto; gap: 4px 14px; padding: 8px max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left)); }
+  .top .spacer { flex: 1; order: 1; }
+  .top .display-toggle { order: 2; }
+  nav.tabs { order: 3; width: calc(100% + 32px); margin: 0 -16px; padding: 0 16px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  nav.tabs::-webkit-scrollbar { display: none; }
+  nav.tabs a { flex: 0 0 auto; border-radius: 8px 8px 0 0; }
+  nav.tabs a { padding: 8px 10px; }
+  .tune-layout { grid-template-columns: 1fr; }
+  .tune-list { max-height: 34vh; }
+  .preview-item { grid-template-columns: 1fr; }
+  .hero { flex-wrap: wrap; }
+  .modal-bg { padding: 20px 12px; }
+}
+
+/* phones */
+@media (max-width: 720px) {
+  :root { font-size: 15px; }
+  main { padding: 14px 12px calc(20px + env(safe-area-inset-bottom)); }
+  h1 { font-size: 20px; }
+
+  /* header: brand + options on one line, the tabs scroll sideways on the next */
+  header.top { gap: 4px 10px; padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
+  .brand { font-size: 17px; }
+  .brand img { width: 28px; height: 28px; }
+  .navarrows { display: none; }          /* the browser's own back/forward does the same */
+  .top .display-toggle { font-size: 12px; }
+  nav.tabs { width: calc(100% + 24px); margin: 0 -12px; padding: 0 12px; gap: 2px; }
+  nav.tabs a { flex: 0 0 auto; border-radius: 8px 8px 0 0; padding: 9px 12px; }
+
+  .grid.cols-2, .grid.cols-3, .grid.cols-4 { grid-template-columns: minmax(0, 1fr); }
+  .hero { gap: 10px; }
+  .tile { min-width: 0; flex: 1 1 120px; padding: 10px 14px; }
+  .tile .n { font-size: 26px; }
+  .hero .grow { flex-basis: 100%; }
+  .hero button.big { width: 100%; justify-content: center; }
+  .lick-item { flex-wrap: wrap; gap: 8px 10px; padding: 10px; }
+  .lick-item .num { width: auto; }
+  .lick-item .grow { flex-basis: 55%; min-width: 0; }
+
+  .practice-head { flex-direction: column; align-items: stretch; gap: 8px; }
+  .practice-head > .row { flex-wrap: nowrap; }
+  .practice-head > .row > select { flex: 1; min-width: 0; }
+  .transport { gap: 12px; padding: 10px 12px; }
+  .transport .slider { flex: 1 1 100%; }
+  .transport .slider input[type=range] { flex: 1; min-width: 60px; }
+  .transport .slider button { padding-left: 10px; padding-right: 10px; }
+  .rate { grid-template-columns: 1fr 1fr; }
+  #pNote { width: 100% !important; }
+
+  .modal-bg { padding: 0; }
+  .modal { border-radius: 0; min-height: 100%; padding: 14px 12px calc(20px + env(safe-area-inset-bottom)); border-left: 0; border-right: 0; }
+
+  .tablecard table { min-width: 720px; }
+  .preview-item .fields { grid-template-columns: 1fr; }
+  .chart { grid-template-columns: repeat(2, 1fr); }
+  .placements td select { max-width: 200px; }
+  .bars-chart { height: 90px; }
+  input[style*="width:"], select[style*="width:"] { max-width: 100%; }
+  .row > input, .row > select { min-width: 0; }
+  .toast { width: calc(100% - 32px); text-align: center; bottom: calc(14px + env(safe-area-inset-bottom)); }
+
+  /* Transcribe: the floating timeline stays, but its controls scroll sideways and the long help text goes */
+  .al-bars { grid-template-columns: 1fr; }
+  .al-sticky { padding: 8px !important; }
+  .al-sticky > .row { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 6px; scrollbar-width: none; }
+  .al-sticky > .row > * { flex: 0 0 auto; }
+  .al-sticky > .small.muted { display: none; }
+  #alPick .row { flex-wrap: wrap; }
+  #alPick input { flex: 1 1 100%; width: 100% !important; min-width: 0 !important; }
+  .al-pick-panel .row { gap: 8px; }
+
+  /* routine */
+  .rweek { margin-left: auto; }
+  .rnote { margin-left: 0; width: 100%; }
+}
+
+@media (max-width: 400px) {
+  .transport .slider { flex-wrap: wrap; row-gap: 6px; }
+  .transport .slider input[type=range] { flex: 1 1 100%; order: 5; }
+  .tile { flex-basis: 100px; }
+}

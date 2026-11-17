@@ -90,6 +90,14 @@ function wireListen(root = document) {
   });
 }
 
+// The header wraps onto two lines on phones; sticky panes below it (Transcribe) need its real height.
+(() => {
+  const h = $("header.top"); if (!h) return;
+  const set = () => document.documentElement.style.setProperty("--hdr-h", h.offsetHeight + "px");
+  set(); window.addEventListener("resize", set);
+  if (window.ResizeObserver) new ResizeObserver(set).observe(h);
+})();
+
 /* ---------------------------------------------------------------- router */
 const VIEWS = {};
 async function go(tab) {
@@ -648,7 +656,7 @@ VIEWS.library = async () => {
       <label class="check"><input type="checkbox" id="fFav"> Favorites</label>
       <label class="check"><input type="checkbox" id="fArch"> Show archived</label>
     </div>
-    <div class="card" style="padding:0"><table><thead><tr><th class="sortable" data-sort="fav" title="Sort by favorites">★</th><th></th>
+    <div class="card tablecard" style="padding:0"><table><thead><tr><th class="sortable" data-sort="fav" title="Sort by favorites">★</th><th></th>
       <th class="sortable" data-sort="number">#</th><th class="sortable" data-sort="name">Name</th><th class="sortable" data-sort="bars">Bars</th>
       <th class="sortable" data-sort="fn">Function</th><th class="sortable" data-sort="key">Key</th><th class="sortable" data-sort="tags">Tags</th>
       <th class="sortable" data-sort="state">State</th><th class="sortable" data-sort="next">Next</th></tr></thead>

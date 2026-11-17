@@ -86,7 +86,7 @@ async function alignOpen(work, usable) {
     const dpr = window.devicePixelRatio || 1, w = tl.clientWidth;
     cv.width = w * dpr; cv.height = HT * dpr; cv.style.width = w + "px"; cv.style.height = HT + "px";
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    document.documentElement.style.setProperty("--al-top", ($("#alSticky").offsetHeight + 70) + "px");
+    document.documentElement.style.setProperty("--al-top", ($("#alSticky").offsetHeight + (parseInt(getComputedStyle(document.documentElement).getPropertyValue("--hdr-h")) || 56) + 14) + "px");
     $("#alSpacer").style.cssText = `width:${Math.ceil(dur() * A.pps)}px;height:1px`;
     draw();
   }
@@ -180,7 +180,7 @@ async function alignOpen(work, usable) {
 
   // ------------------------------------------------------------------ bar lines
   const hit = x => {
-    let best = -1, bd = 7;
+    let best = -1, bd = matchMedia("(pointer: coarse)").matches ? 20 : 7;  // a finger needs a wider target
     A.times.forEach((t, i) => { const d = Math.abs(t2x(t) - x); if (d < bd) { bd = d; best = i; } });
     return best;
   };
@@ -188,6 +188,11 @@ async function alignOpen(work, usable) {
     if (A.drag) return;
     cv.style.cursor = hit(e.offsetX) >= 0 ? "col-resize" : noteAt(e.offsetX, e.offsetY) ? "copy" : "pointer";
   });
+  // On a touch screen, a finger that lands on a bar line drags it; anywhere else the timeline scrolls as usual.
+  cv.addEventListener("touchstart", e => {
+    const r = cv.getBoundingClientRect();
+    if (e.touches.length === 1 && hit(e.touches[0].clientX - r.left) >= 0) e.preventDefault();
+  }, { passive: false });
   cv.addEventListener("pointerdown", e => {
     defocus();
     const i = hit(e.offsetX);
@@ -754,7 +759,7 @@ async function alignOpen(work, usable) {
     else { A.pick = { a: n, b: n }; toast(p.b - p.a + 1 >= MAX && (n === p.a - 1 || n === p.b + 1) ? `A lick is at most ${MAX} bars: started a new pick at bar ${n}` : `Started a new pick at bar ${n}`, 1800); }
     paintPick(); draw();
   }
-  const fitTop = () => document.documentElement.style.setProperty("--al-top", ($("#alSticky").offsetHeight + 70) + "px");
+  const fitTop = () => document.documentElement.style.setProperty("--al-top", ($("#alSticky").offsetHeight + (parseInt(getComputedStyle(document.documentElement).getPropertyValue("--hdr-h")) || 56) + 14) + "px");
   function paintPick() {
     requestAnimationFrame(fitTop);  // the floating pane changes height with the pick row
     const p = A.pick, box = $("#alPick");
