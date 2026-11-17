@@ -15,7 +15,7 @@ import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from fastapi import Body, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -617,8 +617,11 @@ def create_app(root: Path) -> FastAPI:
         return srs.stats(lib.db, lib.settings)
 
     @app.post("/api/open")
-    async def open_file(body: dict = Body(...)):
-        """Open a library file in its default app (MuseScore for .musicxml) - Mac only."""
+    async def open_file(request: Request, body: dict = Body(...)):
+        """Open a library file in its default app (MuseScore for .musicxml) - Mac only, and only for the computer the
+        server runs on: from another computer on the network it would open on the wrong screen."""
+        if (request.client.host if request.client else "") not in ("127.0.0.1", "::1", "localhost"):
+            raise HTTPException(403, "Opening in MuseScore only works on the computer that runs Licksmith. Use the download links instead.")
         p = Path(body["path"])
         p = (lib.lib / p).resolve() if not p.is_absolute() else p.resolve()
         if lib.lib.resolve() not in p.parents or not p.exists():
@@ -635,15 +638,47 @@ def create_app(root: Path) -> FastAPI:
     return app
 
 
+def lan_addresses() -> list[str]:
+    """This computer's addresses on the local network (nothing is sent: a UDP connect only picks the outgoing interface)."""
+    import socket
+
+    out = []
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sk:
+            sk.connect(("10.255.255.255", 1))
+            out.append(sk.getsockname()[0])
+    except OSError:
+        pass
+    try:
+        for ip in socket.gethostbyname_ex(socket.gethostname())[2]:
+            if not ip.startswith("127.") and ip not in out:
+                out.append(ip)
+    except OSError:
+        pass
+    return out
+
+
 def serve(root: Path, host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True) -> None:
+    """host "0.0.0.0" (the --lan flag) lets every computer on the local network use the app. There are no accounts, so
+    anyone who can reach the port can change the library: only do that on a network you trust."""
+    import socket
     import threading
     import webbrowser
 
     import uvicorn
 
     app = create_app(root)
-    url = f"http://{host}:{port}"
+    lan = host in ("0.0.0.0", "::")
+    url = f"http://{'127.0.0.1' if lan else host}:{port}"
     if open_browser:
         threading.Timer(1.2, lambda: webbrowser.open(url)).start()
     print(f"Licksmith running at {url}  (Ctrl-C to stop)")
+    if lan:
+        print("Open to the local network. Other computers can use:")
+        for ip in lan_addresses():
+            print(f"  http://{ip}:{port}")
+        name = socket.gethostname().split(".")[0]
+        if name:
+            print(f"  http://{name}.local:{port}   (Macs and most phones)")
+        print("There is no login: anyone on this network can change your library.")
     uvicorn.run(app, host=host, port=port, log_level="warning")

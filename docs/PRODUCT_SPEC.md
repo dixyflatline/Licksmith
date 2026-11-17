@@ -52,7 +52,7 @@ The design priority is **minimising human effort and keeping the human in contro
 | Vision (optional) | DeepSeek or Anthropic vision API to read a screenshot of sheet music into ABC (Section 10) |
 | CLI | `licksmith` console script (`lick4myhorn.cli:main`; `l4mh` kept as an alias) |
 
-**Run model.** `licksmith serve` starts Uvicorn on `127.0.0.1:8765`, opens the browser, and stays in the foreground until Ctrl-C. The project root is `<project>/`, the data root `<project>/library/`. Long jobs (transcription) run in a background thread inside the server process; **stopping the server stops the job** and the UI warns about this.
+**Run model.** `licksmith serve` starts Uvicorn on `127.0.0.1:8765`, opens the browser, and stays in the foreground until Ctrl-C. `licksmith serve --lan` (= `--host 0.0.0.0`) listens on every interface so other computers on the local network can use the app; it prints the LAN addresses and a no-login warning. `POST /api/open` (open in MuseScore) is refused for non-loopback clients. The project root is `<project>/`, the data root `<project>/library/`. Long jobs (transcription) run in a background thread inside the server process; **stopping the server stops the job** and the UI warns about this.
 
 **Setup script** (`setup_mac.sh`): installs `ffmpeg`, `uv`, `fluid-synth` via Homebrew; creates a Python 3.12 venv with `uv`; installs the package with the `audio` extras; checks for MuseScore 4; walks the user through the Hugging Face login; runs the offline self-test.
 

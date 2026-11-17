@@ -10,7 +10,7 @@
   licksmith merge <work> --engines A,B [--name merged]               fill A's empty bars from B
   licksmith bench <work> --book book.musicxml [--engine NAME]       compare with the published solo
 
-  licksmith serve [--port 8765]                                     lick library + practice web app
+  licksmith serve [--port 8765] [--lan]                             lick library + practice web app (--lan: every computer on the network)
   licksmith licks import <file.musicxml> [--mode auto|sheet|single|range --bars 17-20]
   licksmith licks list
 """
@@ -246,7 +246,7 @@ def cmd_bench(a):
 def cmd_serve(a):
     from .server import serve
 
-    serve(ROOT, host=a.host, port=a.port, open_browser=not a.no_browser)
+    serve(ROOT, host="0.0.0.0" if a.lan else a.host, port=a.port, open_browser=not a.no_browser)
 
 
 def cmd_licks(a):
@@ -325,6 +325,7 @@ def main(argv=None):
 
     s = sub.add_parser("serve", help="lick library and practice web app")
     s.add_argument("--port", type=int, default=8765); s.add_argument("--host", default="127.0.0.1")
+    s.add_argument("--lan", action="store_true", help="let every computer on the local network use the app (same as --host 0.0.0.0)")
     s.add_argument("--no-browser", action="store_true"); s.set_defaults(fn=cmd_serve)
 
     s = sub.add_parser("licks", help="import / list licks without the web app")

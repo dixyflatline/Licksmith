@@ -31,7 +31,14 @@ After an update, refresh the packages once: `uv pip install -e ".[audio]"`.
 ```bash
 source .venv/bin/activate
 licksmith serve                 # opens http://127.0.0.1:8765 in your browser; Ctrl-C to stop
+licksmith serve --lan           # same, and every computer on your local network can use it too
 ```
+
+**Using it from other computers.** `--lan` listens on all network interfaces and prints the addresses to type into
+another computer's browser, for example `http://192.168.1.20:8765` or `http://my-mac.local:8765`. The first time, macOS
+asks whether Python may accept incoming connections: choose Allow. Everyone shares one library (same licks, practice
+history and routine). There is no login, so only do this on a network you trust. "Open in MuseScore" only works on the
+computer that runs the server; the other computers use the download links.
 
 **Writing lick sheets.** One MusicXML file can hold many licks. Start each lick with a staff
 text such as `Lick 43, Blues, Major II V, taken from Chet Baker's 1956 Tenderly` (number, your
