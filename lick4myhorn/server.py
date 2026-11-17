@@ -614,6 +614,28 @@ def create_app(root: Path) -> FastAPI:
     async def stats():
         return srs.stats(lib.db, lib.settings)
 
+    # ---------------------------------------------------------------- restart
+    @app.post("/api/restart")
+    async def restart(body: dict = Body(default={})):
+        """Start the server again in the same process, terminal and options (after an update, or when it misbehaves). Stops a
+        running transcription, so that needs force=true."""
+        import os
+        import sys
+        import threading
+
+        running = [j for j in transcriber.jobs.values() if j.get("state") not in ("done", "error")]
+        if running and not body.get("force"):
+            raise HTTPException(409, f"A transcription is still running ({len(running)} job{'s' if len(running) > 1 else ''}). "
+                                     "Restarting stops it.")
+        argv = [sys.executable, *getattr(sys, "orig_argv", [sys.executable, *sys.argv])[1:]]
+
+        def again():
+            os.environ["LICKSMITH_RESTARTED"] = "1"   # the browser is already open: don't open another tab
+            os.execv(sys.executable, argv)
+
+        threading.Timer(0.5, again).start()  # after this reply has gone out
+        return {"ok": True, "pid": os.getpid()}
+
     @app.exception_handler(Exception)
     async def errors(_req, exc):
         return JSONResponse({"detail": f"{type(exc).__name__}: {exc}"}, status_code=500)
@@ -644,6 +666,7 @@ def lan_addresses() -> list[str]:
 def serve(root: Path, host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True) -> None:
     """host "0.0.0.0" (the --lan flag) lets every computer on the local network use the app. There are no accounts, so
     anyone who can reach the port can change the library: only do that on a network you trust."""
+    import os
     import socket
     import threading
     import webbrowser
@@ -653,7 +676,7 @@ def serve(root: Path, host: str = "127.0.0.1", port: int = 8765, open_browser: b
     app = create_app(root)
     lan = host in ("0.0.0.0", "::")
     url = f"http://{'127.0.0.1' if lan else host}:{port}"
-    if open_browser:
+    if open_browser and not os.environ.get("LICKSMITH_RESTARTED"):
         threading.Timer(1.2, lambda: webbrowser.open(url)).start()
     print(f"Licksmith running at {url}  (Ctrl-C to stop)")
     if lan:

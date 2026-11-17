@@ -1307,7 +1307,29 @@ VIEWS.settings = async () => {
           band <input type="range" id="sVolB" min="0" max="150" value="${Math.round(Band.engine.vol ? Band.engine.vol.back * 100 : 70)}"></div>
       </div>
     </div>
-    <p><button class="primary big" id="sSave">Save settings</button></p>`;
+    <p><button class="primary big" id="sSave">Save settings</button></p>
+    <div class="card" style="margin-top:18px"><h3>Server</h3>
+      <p class="small muted">Starts Licksmith again, with the same options. Use it after an update. Pages reload by themselves when it is back (a few seconds).
+        Everything you saved stays. A transcription that is running is stopped.</p>
+      <button id="sRestart">Restart server</button> <span class="small muted" id="sRestartMsg"></span></div>`;
+  $("#sRestart").onclick = async () => {
+    const msg = $("#sRestartMsg");
+    if (!confirm("Restart the Licksmith server now?")) return;
+    const go = force => api("/api/restart", { body: { force } });
+    try { await go(false); }
+    catch (e) {
+      if (!/transcription/i.test(e.message) || !confirm(e.message + "\n\nRestart anyway?")) { msg.textContent = e.message; return; }
+      await go(true).catch(() => {});
+    }
+    msg.textContent = "Restarting…";
+    // wait until the old process is gone and the new one answers, then reload the page
+    let down = false;
+    for (let i = 0; i < 60; i++) {
+      await new Promise(r => setTimeout(r, 500));
+      try { await api("/api/meta"); if (down || i > 6) { location.reload(); return; } } catch (e) { down = true; }
+    }
+    msg.textContent = "The server did not come back. Start it again in the terminal: licksmith serve";
+  };
   $("#sSave").onclick = async () => {
     const lo = nameMidi($("#sLow").value), hi = nameMidi($("#sHigh").value);
     if (lo === null || hi === null || hi - lo < 12) { toast("Range: use note names like F#3 and C6, at least an octave apart"); return; }
