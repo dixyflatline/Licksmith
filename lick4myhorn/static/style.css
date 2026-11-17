@@ -214,6 +214,8 @@ button.listen { padding: 4px 9px; font-size: 13px; border-color: var(--line); co
 .al-bar.picked { border-color: #5a9bd0; box-shadow: 0 0 0 1px #5a9bd0; }
 .al-pick { cursor: pointer; padding: 0 4px; border-radius: 4px; }
 .al-pick:hover { background: var(--panel-2); }
+.al-pick::before { content: "\2610\00a0"; color: var(--muted); font-weight: 400; }
+.al-bar.picked .al-pick::before { content: "\2611\00a0"; color: #5a9bd0; }
 .al-pick-panel { padding: 10px 14px; margin-bottom: 10px; }
 .mono { font-family: ui-monospace, Menlo, monospace; }
 .al-btns { display: inline-flex; }

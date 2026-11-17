@@ -455,7 +455,7 @@ async function alignOpen(work, usable) {
   }
   function barHtml(b) {
     const bad = (b.issues || []).length ? `<div class="al-issue">${esc(b.issues.map(i => i.msg).join("; "))}</div>` : "";
-    return `<div class="al-bar-head"><b class="al-pick" title="Click to pick this bar for a lick (Shift-click to add neighbours)">${b.n}</b><span class="muted small">${b.chorus ? `ch ${b.chorus} · bar ${A.D.chart_offset ? (b.bar_in_chorus - 1 + A.D.chart_offset) % A.D.chart_len + 1 : b.bar_in_chorus}` : ""}</span>
+    return `<div class="al-bar-head"><b class="al-pick" title="Tick this bar for the lick. Click the bar next to it to add it (up to 3 in a row), click an end bar again to remove it">${b.n}</b><span class="muted small">${b.chorus ? `ch ${b.chorus} · bar ${A.D.chart_offset ? (b.bar_in_chorus - 1 + A.D.chart_offset) % A.D.chart_len + 1 : b.bar_in_chorus}` : ""}</span>
         <span class="al-btns"><button class="al-ga" title="Play this bar (or the whole picked lick): the recording">A ▶</button><button class="al-gm" title="Play this bar (or the whole picked lick): your notes as MIDI">M ▶</button></span>
         <span class="spacer"></span>${b.locked ? `<span class="chip user">locked</span><button class="ghost al-unlock" title="Go back to the automatic transcription">auto</button>` : ""}</div>
       <div class="paper al-svg"></div>
@@ -737,10 +737,21 @@ async function alignOpen(work, usable) {
   window.transcribeAgainPanel && window.transcribeAgainPanel($("#alAgainBody"), work, A.D);
 
   // ---- take 1-3 adjacent bars as a lick and send it, with the recording of those bars, to the library
+  // Plain clicks toggle bars into the lick (checkbox style): 1-3 bars in a row. Clicking the bar next to the picked ones adds
+  // it, clicking an end bar takes it out again, anything else starts over with that bar. Shift-click still adds a whole range.
   function pick(n, extend) {
-    const p = A.pick;
-    if (p && extend) { const a = Math.min(p.a, n), b = Math.max(p.b, n); A.pick = b - a <= 2 ? { a, b } : { a: n, b: n }; }
-    else A.pick = p && p.a === n && p.b === n ? null : { a: n, b: n };
+    const p = A.pick, MAX = 3;
+    if (!p) A.pick = { a: n, b: n };
+    else if (extend) { const a = Math.min(p.a, n), b = Math.max(p.b, n); A.pick = b - a < MAX ? { a, b } : { a: n, b: n }; }
+    else if (n >= p.a && n <= p.b) {
+      if (p.a === p.b) A.pick = null;                 // the only bar: untick it
+      else if (n === p.a) A.pick = { a: p.a + 1, b: p.b };
+      else if (n === p.b) A.pick = { a: p.a, b: p.b - 1 };
+      else A.pick = { a: n, b: n };                   // a middle bar can't leave a gap: start over from it
+    }
+    else if (n === p.a - 1 && p.b - n < MAX) A.pick = { a: n, b: p.b };
+    else if (n === p.b + 1 && n - p.a < MAX) A.pick = { a: p.a, b: n };
+    else { A.pick = { a: n, b: n }; toast(p.b - p.a + 1 >= MAX && (n === p.a - 1 || n === p.b + 1) ? `A lick is at most ${MAX} bars: started a new pick at bar ${n}` : `Started a new pick at bar ${n}`, 1800); }
     paintPick(); draw();
   }
   const fitTop = () => document.documentElement.style.setProperty("--al-top", ($("#alSticky").offsetHeight + 70) + "px");
@@ -751,7 +762,7 @@ async function alignOpen(work, usable) {
     if (p) for (let n = p.a; n <= p.b; n++) { const el = $(`#alBars .al-bar[data-n="${n}"]`); if (el) el.classList.add("picked"); }
     const len = p ? p.b - p.a + 1 : 0;
     if (len < 1) {
-      box.innerHTML = `<span class="small muted">Make a lick: click a bar number (Shift-click another to add up to 3 bars in a row), then Send to library.</span>`;
+      box.innerHTML = `<span class="small muted">Make a lick: tick the bars (☐) one by one, up to 3 in a row, then Send to library.</span>`;
       return;
     }
     box.innerHTML = `<div class="row"><b>${len > 1 ? `Bars ${p.a}–${p.b}` : `Bar ${p.a}`}</b>
