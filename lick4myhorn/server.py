@@ -349,7 +349,70 @@ def create_app(root: Path) -> FastAPI:
         r = srs.review(lib.db, lick_id, int(body["rating"]), lib.settings, body.get("keys_done", []),
                        body.get("trouble_keys", []), body.get("tempo"), body.get("mode", "drill"),
                        body.get("note", ""))
+        for pc in body.get("clear_hard", []):   # keys played well this session: no longer marked hard
+            lib.db.x("DELETE FROM key_hard WHERE lick_id=? AND pc=?", (lick_id, int(pc) % 12))
         return r
+
+    PRACTICE_CFG_KEYS = {"order": str, "reps": int, "hear": bool, "sound": str, "resp": bool, "back": bool,
+                         "stay": bool, "swing": int, "start_pc": int}
+
+    @app.post("/api/licks/{lick_id}/practice-cfg")
+    async def practice_cfg(lick_id: int, body: dict = Body(...)):
+        """Remember how this lick is practised (stay in key, times per key, backing, start key...). The next
+        session of this lick starts from it, and a lick with no setup of its own starts from the latest one."""
+        _get(lick_id)
+        old = _practice_cfg(lick_id) or {}
+        cfg = dict(old)
+        for k, typ in PRACTICE_CFG_KEYS.items():
+            if k in (body.get("cfg") or {}):
+                v = body["cfg"][k]
+                cfg[k] = None if v is None else typ(v)
+        lib.db.x("INSERT INTO lick_practice(lick_id, cfg, ts) VALUES(?,?,?) "
+                 "ON CONFLICT(lick_id) DO UPDATE SET cfg=excluded.cfg, ts=excluded.ts",
+                 (lick_id, json.dumps(cfg), datetime.now().isoformat(timespec="seconds")))
+        # the sound choice only exists for licks with a recording, and the start key belongs to one lick
+        shared = {k: v for k, v in cfg.items() if k not in ("start_pc", "sound")}
+        lib.db.set_settings({"practice_last": {**(lib.settings.get("practice_last") or {}), **shared}})
+        return cfg
+
+    @app.post("/api/licks/{lick_id}/hard")
+    async def mark_hard(lick_id: int, body: dict = Body(...)):
+        """Mark (hard: true) or unmark one key of a lick as hard."""
+        _get(lick_id)
+        pc = int(body["pc"]) % 12
+        if body.get("hard", True):
+            lib.db.x("INSERT OR REPLACE INTO key_hard(lick_id, pc, ts) VALUES(?,?,?)",
+                     (lick_id, pc, datetime.now().isoformat(timespec="seconds")))
+        else:
+            lib.db.x("DELETE FROM key_hard WHERE lick_id=? AND pc=?", (lick_id, pc))
+        return {"pc": pc, "hard": bool(body.get("hard", True))}
+
+    @app.get("/api/hard")
+    async def hard_keys():
+        """Licks with keys marked hard (most marks first), and per key how many licks it is hard in."""
+        rows = lib.db.q("SELECT lick_id, pc FROM key_hard ORDER BY lick_id, pc")
+        by_lick: dict[int, list[int]] = {}
+        for r in rows:
+            by_lick.setdefault(r["lick_id"], []).append(r["pc"])
+        licks = []
+        for lid, pcs in by_lick.items():
+            try:
+                licks.append({**_lick_summary(lib.lick(lid)), "pcs": pcs})
+            except Exception:  # lick deleted meanwhile
+                continue
+        licks.sort(key=lambda l: (-len(l["pcs"]), l["number"]))
+        by_key: dict[str, list[int]] = {}
+        for l in licks:
+            for pc in l["pcs"]:
+                by_key.setdefault(str(pc), []).append(l["number"])
+        return {"licks": licks, "by_key": by_key}
+
+    def _practice_cfg(lick_id: int):
+        r = lib.db.one("SELECT cfg FROM lick_practice WHERE lick_id=?", (lick_id,))
+        try:
+            return json.loads(r["cfg"]) if r and r["cfg"] else None
+        except ValueError:
+            return None
 
     @app.post("/api/licks/{lick_id}/key-tempo")
     async def key_tempo(lick_id: int, body: dict = Body(...)):
@@ -376,7 +439,9 @@ def create_app(root: Path) -> FastAPI:
     async def lick_detail(lick_id: int, order: str | None = None):
         lk = _get(lick_id)
         out = _lick_summary(lk)
-        out["keys"] = lib.keys_for(lick_id, order)
+        out["practice_cfg"] = _practice_cfg(lick_id) or lib.settings.get("practice_last") or None
+        out["hard_pcs"] = [r["pc"] for r in lib.db.q("SELECT pc FROM key_hard WHERE lick_id=?", (lick_id,))]
+        out["keys"] = lib.keys_for(lick_id, order or (out["practice_cfg"] or {}).get("order"))
         out["intervals"] = srs.preview_intervals(lib.db, lick_id, lib.settings)
         out["history"] = lib.db.q("SELECT ts, rating, keys_done, trouble_keys, tempo, mode FROM reviews "
                                   "WHERE lick_id=? ORDER BY ts DESC LIMIT 30", (lick_id,))
@@ -584,7 +649,9 @@ def create_app(root: Path) -> FastAPI:
 
     @app.get("/api/stats")
     async def stats():
-        return srs.stats(lib.db, lib.settings)
+        out = srs.stats(lib.db, lib.settings)
+        out["hard_by_key"] = (await hard_keys())["by_key"]
+        return out
 
     @app.post("/api/open")
     async def open_file(body: dict = Body(...)):
