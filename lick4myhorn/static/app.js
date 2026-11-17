@@ -516,6 +516,7 @@ function renderKeys() {
     if (Band.sequencer.running) { P.jump = i; } else { showKey(i); }
   });
   $("#pDone").textContent = P.done.size;
+  syncTrouble();
 }
 
 async function showKey(i) {
@@ -531,8 +532,19 @@ async function showKey(i) {
 function toggleTrouble() {
   const P = S.practice;
   const k = Band.sequencer.running && P.shownKi !== undefined ? P.shownKi : P.ki;
-  P.trouble.has(k) ? P.trouble.delete(k) : P.trouble.add(k);
+  const on = !P.trouble.has(k);
+  on ? P.trouble.add(k) : P.trouble.delete(k);
   renderKeys();
+  toast(on ? `${P.keys[k].label} marked hard. It will show on the Progress page.` : `${P.keys[k].label} no longer marked hard.`);
+}
+// The button shows whether the key you are on is marked hard.
+function syncTrouble() {
+  const P = S.practice, b = $("#pTrouble");
+  if (!P || !b) return;
+  const k = Band.sequencer.running && P.shownKi !== undefined ? P.shownKi : P.ki;
+  const on = P.trouble.has(k);
+  b.classList.toggle("on", on);
+  b.textContent = on ? "✓ Key marked hard" : "Mark key hard";
 }
 
 async function togglePlay() {
