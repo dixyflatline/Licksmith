@@ -636,6 +636,7 @@ VIEWS.library = async () => {
   main().innerHTML = `
     <div class="row"><div class="grow"><h1>Library</h1><p class="sub">${licks.filter(l => !l.archived).length} licks. Click a lick to see it in any key, edit its tags or practise it.</p></div>
       <button id="practiceSel">Practise the filtered licks</button>
+      <button id="exportSel" title="A zip with notation, MIDI, audio clips and JSON (with YouTube sync times) for each lick">Export the filtered licks</button>
       <button id="repeatsBtn">Find repeated licks</button>
       <button class="danger" id="deleteSel">Delete the filtered licks…</button></div>
     <div id="repeatsOut"></div>
@@ -700,6 +701,7 @@ VIEWS.library = async () => {
     });
   };
   ["fText", "fFn", "fState", "fTag", "fFav", "fArch"].forEach(id => $("#" + id).addEventListener("input", draw));
+  $("#exportSel").onclick = () => S.filtered.length ? (location.href = `/api/export/licks.zip?ids=${S.filtered.join(",")}`) : toast("No licks selected");
   $("#practiceSel").onclick = () => S.filtered.length ? startPractice(S.filtered, 0) : toast("No licks selected");
   $("#repeatsBtn").onclick = async () => {
     const reps = await api("/api/repeats");
@@ -739,6 +741,8 @@ async function openLick(id, nav = "push") {
       <button class="primary" id="mPractice">Practise now</button>
       <a class="btn" href="/api/licks/${d.id}/twelve">12-key sheet (MusicXML)</a>
       <a class="btn" href="/api/licks/${d.id}/musicxml">Lick file</a>
+      <a class="btn" href="/api/export/licks.zip?ids=${d.id}" title="Notation, MIDI, audio clip and a JSON file with the YouTube sync times">Export…</a>
+      <a class="btn" href="/api/licks/${d.id}/export.mid" title="MIDI file at the recording's tempo (concert pitch)">MIDI</a>
       <button id="mOpen" title="Open in MuseScore (Mac)">Open in MuseScore</button>
     </div>
     ${d.audio ? `<div class="row" style="margin:8px 0"><b class="small">Original recording</b><audio controls preload="none" src="/api/licks/${d.id}/audio" style="height:32px"></audio></div>` : ""}

@@ -19,6 +19,7 @@ from pathlib import Path
 from . import analysis as A
 from . import fit as F
 from . import licks as L
+from . import lickexport as X
 from . import similar
 from . import srs
 from .db import DB
@@ -196,7 +197,7 @@ class Library:
         return self.lib / "licks" / "audio" / f"L{number:04d}.mp3"
 
     def add_lick_from_abc(self, abc: str, sharps: int, meter: str, meta: dict, audio: tuple[Path, float, float] | None,
-                          audio_bars: list[float] | None = None) -> dict:
+                          audio_bars: list[float] | None = None, origin: dict | None = None) -> dict:
         """abc = the bars as B-flat trumpet reads them. audio = (recording, start s, end s) to cut next to the lick."""
         import subprocess
 
@@ -226,10 +227,85 @@ class Library:
             r = subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-ss", f"{max(0.0, t0):.3f}", "-to", f"{t1:.3f}",
                                 "-i", str(src), "-ac", "1", "-codec:a", "libmp3lame", "-q:a", "4", str(out)])
             has_audio = r.returncode == 0 and out.exists()
+            side = {}
             if has_audio and audio_bars:  # seconds into the clip where each bar starts, then where the last one ends
-                out.with_suffix(".json").write_text(json.dumps({"bars": [round(x, 3) for x in audio_bars]}))
+                side["bars"] = [round(x, 3) for x in audio_bars]
+            if has_audio and origin:      # where in the original recording (e.g. the YouTube video) the clip begins
+                side["origin"] = origin
+            if side:
+                out.with_suffix(".json").write_text(json.dumps(side))
         self._svg_cache.clear()
         return {"id": lick_id, "number": number, "label": label, "audio": has_audio, "issues": parsed["issues"]}
+
+    def lick_sidecar(self, number: int) -> dict:
+        try:
+            return json.loads(self.lick_audio_path(number).with_suffix(".json").read_text())
+        except (OSError, ValueError):
+            return {}
+
+    def work_source(self, work: str | None) -> dict:
+        """source.json of a transcription work (the URL the audio came from), or {}."""
+        if not work or "/" in work or work.startswith("."):
+            return {}
+        try:
+            return json.loads((self.lib / "works" / work / "source.json").read_text())
+        except (OSError, ValueError):
+            return {}
+
+    def lick_origin(self, lick: dict) -> dict | None:
+        """Where the lick's recording comes from: stored with the clip, else worked out from the lick's comment."""
+        o = self.lick_sidecar(lick["number"]).get("origin")
+        if o:
+            return X._origin_links(o, self.work_source(o.get("work")))
+        m = X._COMMENT.search(lick.get("comment") or "")
+        return X.origin_from_comment(lick.get("comment"), self.work_source(m["work"]) if m else None)
+
+    # ---- export: one lick as files other software can read
+    def export_lick(self, lick_id: int) -> tuple[dict, dict]:
+        """(lick.json content, {file name in the bundle: bytes or a Path})."""
+        import subprocess
+
+        lk = self.lick(lick_id)
+        from .fit import lick_label
+
+        lk["label"] = lick_label(lk)
+        n = lk["number"]
+        files: dict = {"musicxml": "lick.musicxml", "midi": "lick.mid"}
+        blobs: dict = {"lick.musicxml": Path(lk["_path"])}
+        audio = None
+        ap = self.lick_audio_path(n)
+        if ap.exists():
+            dur = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(ap)],
+                                 capture_output=True, text=True).stdout.strip()
+            audio = {"duration": float(dur) if dur else 0.0, "bar_marks": self.audio_bars(n)}
+            files["audio"] = "audio.mp3"
+            blobs["audio.mp3"] = ap
+        rec = X.lick_record(lk, audio=audio, origin=self.lick_origin(lk), tempo=float(self.settings.get("tempo", 120)),
+                            files=files)
+        blobs["lick.mid"] = X.midi_bytes(lk["data"], rec["tempo_bpm"], lk["label"])
+        blobs["lick.json"] = json.dumps(rec, indent=1, ensure_ascii=False).encode("utf-8")
+        return rec, blobs
+
+    def export_zip(self, ids: list[int], dest: Path) -> int:
+        """A zip of the licks (index.json, README.txt, licks/L0043/...). Returns how many were written."""
+        import zipfile
+
+        index = []
+        with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as z:
+            for i in ids:
+                rec, blobs = self.export_lick(i)
+                folder = f"licks/L{rec['number']:04d}"
+                for name, b in blobs.items():
+                    if isinstance(b, Path):
+                        z.write(b, f"{folder}/{name}")
+                    else:
+                        z.writestr(f"{folder}/{name}", b)
+                index.append({"number": rec["number"], "label": rec["label"], "folder": folder,
+                              "audio": bool(rec["audio"]), "youtube": (rec["origin"] or {}).get("watch_url")})
+            z.writestr("index.json", json.dumps({"format": "licksmith-export", "version": X.VERSION, "licks": index},
+                                                indent=1, ensure_ascii=False))
+            z.writestr("README.txt", X.README)
+        return len(index)
 
     def audio_bars(self, number: int) -> list[float] | None:
         try:

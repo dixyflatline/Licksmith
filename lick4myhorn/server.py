@@ -10,6 +10,7 @@ import platform
 import subprocess
 import tempfile
 import re
+import shutil
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -479,6 +480,35 @@ def create_app(root: Path) -> FastAPI:
         lk = _get(lick_id)
         return FileResponse(lk["_path"], filename=Path(lk["file"]).name,
                             media_type="application/vnd.recordare.musicxml+xml")
+
+    # ---------------------------------------------------------------- export (notation + MIDI + audio + YouTube sync)
+    @app.get("/api/licks/{lick_id}/export")
+    async def lick_export(lick_id: int):
+        """One lick as JSON: notes with times in the clip and in the original video, links to the files, the YouTube origin."""
+        _get(lick_id)
+        return _guard(lambda: lib.export_lick(lick_id)[0])
+
+    @app.get("/api/licks/{lick_id}/export.mid")
+    async def lick_export_midi(lick_id: int):
+        lk = _get(lick_id)
+        rec, blobs = _guard(lambda: lib.export_lick(lick_id))
+        return Response(blobs["lick.mid"], media_type="audio/midi",
+                        headers={"Content-Disposition": f'attachment; filename="L{lk["number"]:04d}.mid"'})
+
+    @app.get("/api/export/licks.zip")
+    async def licks_export_zip(ids: str = ""):
+        """A zip bundle (JSON, MusicXML, MIDI, mp3 per lick). ids = comma separated lick ids; empty = every lick."""
+        from starlette.background import BackgroundTask
+
+        want = [int(x) for x in ids.split(",") if x.strip().isdigit()] or [r["id"] for r in lib.list_licks()]
+        if not want:
+            raise HTTPException(404, "No licks to export")
+        for i in want:
+            _get(i)
+        tmp = Path(tempfile.mkdtemp()) / "licksmith-licks.zip"
+        _guard(lambda: lib.export_zip(want, tmp))
+        return FileResponse(tmp, media_type="application/zip", filename="licksmith-licks.zip",
+                            background=BackgroundTask(lambda: shutil.rmtree(tmp.parent, ignore_errors=True)))
 
     @app.get("/api/licks/{lick_id}/twelve")
     async def lick_twelve(lick_id: int, order: str | None = None):

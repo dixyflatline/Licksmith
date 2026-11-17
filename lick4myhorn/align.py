@@ -23,6 +23,7 @@ from pathlib import Path
 import numpy as np
 
 from . import capture as C
+from . import lickexport as X
 from .engines import RANGES, drop_chords, in_range, load_notes
 from .form import load_form
 
@@ -433,7 +434,8 @@ class AlignWork:
                 "comment": f"Solo bar{'s' if b != a else ''} {a if a == b else f'{a}-{b}'} ({self.name}), {t0 + pad:.1f}-{t1 - pad:.1f} s of the recording"}
         audio = (self.audio, t0, t1) if self.audio.exists() else None
         bars_at = [v["t0"] - t0 for v in view] + [view[-1]["t1"] - t0]
-        return lib.add_lick_from_abc(" | ".join(abcs) + " |]", self.sharps(), self.meter(), meta, audio, bars_at)
+        origin = X.make_origin(self.name, lib.work_source(self.name), t0, t1)
+        return lib.add_lick_from_abc(" | ".join(abcs) + " |]", self.sharps(), self.meter(), meta, audio, bars_at, origin)
 
     # ------------------------------------------------------------------ chords from an iReal chart
     def _bass_by_bar(self) -> list[dict]:

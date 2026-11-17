@@ -531,6 +531,9 @@ GET  /api/licks ; GET /api/repeats ; GET/PATCH/DELETE /api/licks/{id}
 GET/POST /api/licks/{id}/abc ; POST …/abc/preview ; POST …/abc/edit
 POST /api/licks/{id}/reanalyse
 GET  /api/licks/{id}/svg?pc=&written= ; /play ; /audio?semis=&bpm= ; /events ; /musicxml ; /twelve
+GET  /api/licks/{id}/export                  lick JSON: notes/chords with t_audio (seconds in the clip) and t_video (seconds in the YouTube video), audio bar marks, origin {url, watch_url, embed_url, clip_start, clip_end}
+GET  /api/licks/{id}/export.mid              standard MIDI file at the recording's tempo (concert pitch)
+GET  /api/export/licks.zip?ids=1,2,3         bundle: index.json, README.txt, licks/L0043/{lick.json, lick.musicxml, lick.mid, audio.mp3}; no ids = every lick
 POST /api/import/preview ; POST /api/import/save ; POST /api/playlist
 GET  /api/tunes ; GET /api/tune?title= ; POST /api/tune/learning
 POST /api/fit ; /api/fit/svg ; /api/fit/snippets ; /api/fit/play ; /api/fit/file
