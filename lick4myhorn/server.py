@@ -6,8 +6,6 @@ keeps SQLite and music21 simple and safe.
 from __future__ import annotations
 
 import json
-import platform
-import subprocess
 import tempfile
 import re
 import shutil
@@ -15,7 +13,7 @@ import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import Body, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -615,21 +613,6 @@ def create_app(root: Path) -> FastAPI:
     @app.get("/api/stats")
     async def stats():
         return srs.stats(lib.db, lib.settings)
-
-    @app.post("/api/open")
-    async def open_file(request: Request, body: dict = Body(...)):
-        """Open a library file in its default app (MuseScore for .musicxml) - Mac only, and only for the computer the
-        server runs on: from another computer on the network it would open on the wrong screen."""
-        if (request.client.host if request.client else "") not in ("127.0.0.1", "::1", "localhost"):
-            raise HTTPException(403, "Opening in MuseScore only works on the computer that runs Licksmith. Use the download links instead.")
-        p = Path(body["path"])
-        p = (lib.lib / p).resolve() if not p.is_absolute() else p.resolve()
-        if lib.lib.resolve() not in p.parents or not p.exists():
-            raise HTTPException(400, "Only files inside the library can be opened")
-        if platform.system() != "Darwin":
-            raise HTTPException(501, "Opening files is only supported on macOS")
-        subprocess.Popen(["open", str(p)])
-        return {"ok": True}
 
     @app.exception_handler(Exception)
     async def errors(_req, exc):

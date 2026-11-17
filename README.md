@@ -37,8 +37,7 @@ licksmith serve --lan           # same, and every computer on your local network
 **Using it from other computers.** `--lan` listens on all network interfaces and prints the addresses to type into
 another computer's browser, for example `http://192.168.1.20:8765` or `http://my-mac.local:8765`. The first time, macOS
 asks whether Python may accept incoming connections: choose Allow. Everyone shares one library (same licks, practice
-history and routine). There is no login, so only do this on a network you trust. "Open in MuseScore" only works on the
-computer that runs the server; the other computers use the download links.
+history and routine). There is no login, so only do this on a network you trust.
 
 **Writing lick sheets.** One MusicXML file can hold many licks. Start each lick with a staff
 text such as `Lick 43, Blues, Major II V, taken from Chet Baker's 1956 Tenderly` (number, your
@@ -57,7 +56,7 @@ solo" and type bar ranges like `17-20, 33-36`.
   The rating sets the next review date.
 - *Practice sound*: a lick saved from Transcribe has a recording, and the Practice page plays it by default; the Sound menu switches to the MIDI band (licks without a recording always use MIDI). The note being heard lights up in red in both modes. The recording is shifted to each key and sped up or slowed to the tempo slider on the fly (ffmpeg, cached in `library/licks/audio/cache`), with the band still playing the backing.
 - *Library*: click a column heading (#, Name, Bars, Function, Key, Tags, State, Next) to sort by it, click again to reverse; search and filter by function, tag or state; open a lick to see any key, edit
-  tags, download the 12-key sheet, or open it in MuseScore.
+  tags, or download the 12-key sheet.
 - *Import*: lick sheets and solos (MusicXML), and iReal playlists (Share › HTML, or paste the
   `irealb://` link).
 - *Tunes*: the chart with its ii–V–I's and turnarounds marked. "Fit my licks" places licks

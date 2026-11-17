@@ -743,7 +743,6 @@ async function openLick(id, nav = "push") {
       <a class="btn" href="/api/licks/${d.id}/musicxml">Lick file</a>
       <a class="btn" href="/api/export/licks.zip?ids=${d.id}" title="Notation, MIDI, audio clip and a JSON file with the YouTube sync times">Export…</a>
       <a class="btn" href="/api/licks/${d.id}/export.mid" title="MIDI file at the recording's tempo (concert pitch)">MIDI</a>
-      <button id="mOpen" title="Open in MuseScore (Mac)">Open in MuseScore</button>
     </div>
     ${d.audio ? `<div class="row" style="margin:8px 0"><b class="small">Original recording</b><audio controls preload="none" src="/api/licks/${d.id}/audio" style="height:32px"></audio></div>` : ""}
     <details id="mAbcBox" open style="margin:10px 0"><summary><b>Edit notes</b> <span class="small muted">(written for B♭ trumpet; the notes as text, or click them below)</span></summary>
@@ -863,7 +862,6 @@ async function openLick(id, nav = "push") {
     } catch (err) { $("#abcMsg", bg).textContent = err.message; }
   };
   $("#mPractice", bg).onclick = () => { bg.remove(); startPractice([d.id], 0); };
-  $("#mOpen", bg).onclick = () => api("/api/open", { body: { path: d.file } }).catch(e => toast(e.message));
   $("#mStar", bg).onclick = async () => {
     const on = !$("#mStar", bg).classList.contains("on");
     await api(`/api/licks/${d.id}`, { method: "PATCH", body: { favorite: on ? 1 : 0 } });

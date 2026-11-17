@@ -52,7 +52,7 @@ The design priority is **minimising human effort and keeping the human in contro
 | Vision (optional) | DeepSeek or Anthropic vision API to read a screenshot of sheet music into ABC (Section 10) |
 | CLI | `licksmith` console script (`lick4myhorn.cli:main`; `l4mh` kept as an alias) |
 
-**Run model.** `licksmith serve` starts Uvicorn on `127.0.0.1:8765`, opens the browser, and stays in the foreground until Ctrl-C. `licksmith serve --lan` (= `--host 0.0.0.0`) listens on every interface so other computers on the local network can use the app; it prints the LAN addresses and a no-login warning. `POST /api/open` (open in MuseScore) is refused for non-loopback clients. The project root is `<project>/`, the data root `<project>/library/`. Long jobs (transcription) run in a background thread inside the server process; **stopping the server stops the job** and the UI warns about this.
+**Run model.** `licksmith serve` starts Uvicorn on `127.0.0.1:8765`, opens the browser, and stays in the foreground until Ctrl-C. `licksmith serve --lan` (= `--host 0.0.0.0`) listens on every interface so other computers on the local network can use the app; it prints the LAN addresses and a no-login warning. The project root is `<project>/`, the data root `<project>/library/`. Long jobs (transcription) run in a background thread inside the server process; **stopping the server stops the job** and the UI warns about this.
 
 **Setup script** (`setup_mac.sh`): installs `ffmpeg`, `uv`, `fluid-synth` via Homebrew; creates a Python 3.12 venv with `uv`; installs the package with the `audio` extras; checks for MuseScore 4; walks the user through the Hugging Face login; runs the offline self-test.
 
@@ -189,7 +189,7 @@ State definitions (from the card): `new` (no reps), `lapsed` (last rating = Agai
   - the **key chooser** (all 12 keys in the player's key order, each showing the transposed, octave-fitted notation);
   - editable fields: name, tags (chips), function, artist, tune, year, comment, notes, favourite, archive;
   - **Original recording** audio player when a recording exists (plays the clip; the note being heard lights up);
-  - download the **12-key sheet** (MusicXML generated on request, nothing stored), or open in MuseScore (`/api/open`);
+  - download the **12-key sheet** (MusicXML generated on request, nothing stored);
   - **Edit notes** in place (§11.5): the same note editor as the Transcribe tab operating on the lick's ABC text; edits stay in the page until "Save notes to this lick" (keeps number, tags, notes, history);
   - "Related licks": same line in another key (`same`), contained inside another (`inside`), or mostly equal (`similar`);
   - delete lick; "Re-analyse" recomputes tonic, mode, function and auto-tags.
@@ -537,7 +537,7 @@ GET  /api/export/licks.zip?ids=1,2,3         bundle: index.json, README.txt, lic
 POST /api/import/preview ; POST /api/import/save ; POST /api/playlist
 GET  /api/tunes ; GET /api/tune?title= ; POST /api/tune/learning
 POST /api/fit ; /api/fit/svg ; /api/fit/snippets ; /api/fit/play ; /api/fit/file
-GET  /api/sound ; POST /api/render ; GET /api/stats ; POST /api/open
+GET  /api/sound ; POST /api/render ; GET /api/stats
 ```
 
 `/api/licks/{id}/audio` with `semis`/`bpm` returns a variant of the clip (ffmpeg pitch shift and tempo change, cached) with headers `X-Clip-Offset` and `X-Clip-Marks` (bar positions in the clip). Errors use `HTTPException` with a human-readable `detail`. Mutations are guarded so a `ValueError` becomes a 422 with its message.
