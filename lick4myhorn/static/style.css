@@ -395,3 +395,6 @@ img, svg, canvas { max-width: 100%; }
   .transport .slider input[type=range] { flex: 1 1 100%; order: 5; }
   .tile { flex-basis: 100px; }
 }
+
+/* routine checklist docked above the Licks and Tunes pages */
+.rdock { margin-bottom: 16px; }

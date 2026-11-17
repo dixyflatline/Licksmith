@@ -28,7 +28,7 @@ function toast(msg, ms = 2600) {
   setTimeout(() => t.remove(), ms);
 }
 
-const S = { settings: null, meta: null, tab: "today", practice: null, fit: null, svgCache: new Map() };
+const S = { settings: null, meta: null, tab: "routine", practice: null, fit: null, svgCache: new Map() };
 
 /* ---------------------------------------------------------------- music helpers */
 const NOTE_NAMES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
@@ -102,17 +102,20 @@ function wireListen(root = document) {
 const VIEWS = {};
 async function go(tab) {
   if (tab === "align") tab = "transcribe";  // the page used to be called Align
+  if (tab === "today") tab = "licks";        // the Today tab is now called Licks
   if (S.tab === "transcribe" && tab !== "transcribe" && window.__alCleanup) window.__alCleanup();
   if (tab !== "practice" && Band.sequencer.running) Band.sequencer.stop(true);
   S.tab = tab;
   $$("nav.tabs a").forEach(a => a.classList.toggle("active", a.dataset.tab === tab));
   main().innerHTML = `<div class="empty spin">Loading…</div>`;
-  try { await (VIEWS[tab] || VIEWS.today)(); }
+  try { await (VIEWS[tab] || VIEWS.routine)(); }
   catch (e) { main().innerHTML = `<div class="card"><b>Something went wrong.</b><p class="muted">${esc(e.message)}</p></div>`; }
+  renderDock(tab);
 }
 window.addEventListener("hashchange", () => {
-  let t = location.hash.slice(1) || "today";
+  let t = location.hash.slice(1) || "routine";
   if (t === "align") t = "transcribe";
+  if (t === "today") t = "licks";
   if (t !== S.tab) go(t);
 });
 // Back / forward. A tab is a history entry (its #hash); so is an open lick window ({lick, tab}) and a practice session
@@ -136,9 +139,10 @@ window.addEventListener("popstate", async e => {
     await loadPracticeLick();
     return;
   }
-  let t = location.hash.slice(1) || "today";
+  let t = location.hash.slice(1) || "routine";
   if (t === "align") t = "transcribe";
-  if (t !== S.tab || modal) go(VIEWS[t] ? t : "today");
+  if (t === "today") t = "licks";
+  if (t !== S.tab || modal) go(VIEWS[t] ? t : "routine");
 });
 function wireNavArrows() {
   const back = $("#navBack"), fwd = $("#navFwd");
@@ -155,8 +159,8 @@ async function svgFor(lickId, pc) {
   return S.svgCache.get(key);
 }
 
-/* ---------------------------------------------------------------- Today */
-VIEWS.today = async () => {
+/* ---------------------------------------------------------------- Licks (was Today) */
+VIEWS.licks = async () => {
   const t = await api("/api/today");
   const queue = [...t.due, ...t.new];
   const row = (l, kind) => `
@@ -170,8 +174,8 @@ VIEWS.today = async () => {
       <button data-practice="${l.id}">Practice</button>
     </div>`;
   main().innerHTML = `
-    <h1>Today</h1>
-    <p class="sub">Reviews the forgetting curve says are due, then new licks${t.new_remaining > t.new.length ? ` (${t.new_remaining} new licks waiting)` : ""}.</p>
+    <h1>Licks</h1>
+    <p class="sub">Today's session: reviews the forgetting curve says are due, then new licks${t.new_remaining > t.new.length ? ` (${t.new_remaining} new licks waiting)` : ""}.</p>
     <div class="hero">
       <div class="tile"><div class="n">${t.due.length}</div><div class="l">due for review</div></div>
       <div class="tile"><div class="n">${t.new.length}</div><div class="l">new today</div></div>
@@ -195,6 +199,40 @@ VIEWS.today = async () => {
 /* ---------------------------------------------------------------- Routine (daily practice checklist) */
 const localDay = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const newId = () => "i" + Math.random().toString(36).slice(2, 9);
+
+// Routine sections that have a tab of their own: the section is worked on in that tab, with its checklist shown there.
+const ROUTINE_TABS = { licks: { label: "Licks", re: /lick/i }, tunes: { label: "Tunes", re: /tune/i } };
+const routineTabOf = sec => Object.keys(ROUTINE_TABS).find(t => sec.id === t) || Object.keys(ROUTINE_TABS).find(t => ROUTINE_TABS[t].re.test(sec.title));
+
+// The checklist of this tab's routine section, docked above the page; "Done" goes back to the Routine.
+async function renderDock(tab) {
+  const dock = $("#routineDock");
+  if (!dock) return;
+  if (!ROUTINE_TABS[tab]) { dock.innerHTML = ""; return; }
+  const day = localDay();
+  let R;
+  try { R = await api(`/api/routine?day=${day}`); } catch (e) { dock.innerHTML = ""; return; }
+  if (S.tab !== tab) return;                      // the user already moved on
+  const sec = R.sections.find(x => routineTabOf(x) === tab);
+  if (!sec) { dock.innerHTML = ""; return; }
+  const done = new Set(R.checked);
+  const draw = () => {
+    const c = sec.items.filter(i => done.has(i.id)).length;
+    dock.innerHTML = `<div class="card rdock"><div class="row"><h3 class="grow">${esc(sec.title)} <span class="small muted">${c}/${sec.items.length} today</span></h3>
+      <button class="primary" id="rDone">Done — back to Routine</button></div>
+      ${sec.items.map(i => `<div class="ritem ${done.has(i.id) ? "done" : ""}"><label class="check"><input type="checkbox" data-ditem="${esc(i.id)}" ${done.has(i.id) ? "checked" : ""}> <span>${esc(i.text)}</span></label></div>`).join("")
+        || `<div class="muted small">No items in this section.</div>`}</div>`;
+    $$("[data-ditem]", dock).forEach(cb => cb.onchange = async () => {
+      const id = cb.dataset.ditem;
+      cb.checked ? done.add(id) : done.delete(id);
+      draw();
+      try { await api("/api/routine/check", { body: { day, item: id, done: cb.checked } }); }
+      catch (e) { toast(e.message); }
+    });
+    $("#rDone", dock).onclick = () => { location.hash = "#routine"; };
+  };
+  draw();
+}
 
 VIEWS.routine = async () => {
   const day = localDay();
@@ -223,7 +261,7 @@ VIEWS.routine = async () => {
       ${R.sections.map(sec => {
         const c = sec.items.filter(i => done.has(i.id)).length;
         return `<div class="card rsec"><div class="row"><h3 class="grow">${esc(sec.title)}</h3>
-          <span class="small muted">${c}/${sec.items.length}</span></div>
+          <span class="small muted">${c}/${sec.items.length}</span>${routineTabOf(sec) ? `<a class="btn" href="#${routineTabOf(sec)}">Open ${ROUTINE_TABS[routineTabOf(sec)].label} →</a>` : ""}</div>
           ${sec.items.map(i => `<div class="ritem ${done.has(i.id) ? "done" : ""}">
             <div class="row"><label class="check grow"><input type="checkbox" data-item="${esc(i.id)}" ${done.has(i.id) ? "checked" : ""}> <span>${esc(i.text)}</span></label>
               <button class="ghost small" data-note="${esc(i.id)}" title="Add a comment">${notes[i.id] ? "💬" : "＋ note"}</button></div>
@@ -622,7 +660,7 @@ function nextLick() {
   main().innerHTML = `<h1>Session done</h1><p class="sub">${P.results.length} lick${P.results.length === 1 ? "" : "s"} rated.</p>
     <div class="lick-list">${P.results.map(x => `<div class="lick-item"><div class="grow">${esc(x.lick)}</div>
       <div>${names[x.rating]}</div><div class="muted">next in ${Math.max(1, Math.round(x.days))} d</div></div>`).join("")}</div>
-    <p><a class="btn" href="#today">Back to Today</a> <a class="btn" href="#tunes">Use them in a tune</a></p>`;
+    <p><a class="btn" href="#licks">Back to Licks</a> <a class="btn" href="#tunes">Use them in a tune</a></p>`;
 }
 
 document.addEventListener("keydown", e => {
@@ -1007,7 +1045,7 @@ function renderImportPreview(p, target, banner = "") {
     try {
       const r = await api("/api/import/save", { body: { token: p.token, items } });
       S.svgCache.clear();
-      $(target).innerHTML = `<div class="card">Saved ${r.ids.length} lick${r.ids.length === 1 ? "" : "s"}. <a href="#library">Open the library</a> or <a href="#today">start today's session</a>.</div>`;
+      $(target).innerHTML = `<div class="card">Saved ${r.ids.length} lick${r.ids.length === 1 ? "" : "s"}. <a href="#library">Open the library</a> or <a href="#licks">start today's session</a>.</div>`;
     } catch (e) { toast(e.message); }
   };
 }
@@ -1376,5 +1414,6 @@ async function refreshSound() {
   wireNavArrows();
   let t = location.hash.slice(1);
   if (t === "align") t = "transcribe";
-  go(VIEWS[t] ? t : "today");
+  if (t === "today") t = "licks";
+  go(VIEWS[t] ? t : "routine");
 })();

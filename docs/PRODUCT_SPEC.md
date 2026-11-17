@@ -157,7 +157,7 @@ A **work** is a folder `library/works/<slug>/` holding one recording and everyth
 
 Single page. Header: brand "Lick**4**MyHorn" (the 4 in the accent colour), back/forward arrow buttons (own history stack), tabs, spacer, **Concert pitch** checkbox.
 
-Tabs, in order: **Today, Library, Import, Tunes, Transcribe, Progress, Settings**. Hash routing (`#today`, `#library`, `#transcribe`, …). Opening a lick or a tune pushes a history entry so the back arrow returns to the previous view.
+Tabs, in order: **Routine, Licks, Tunes, Progress, Library, Import, Transcribe, Settings**. Routine is the landing page. Hash routing (`#routine`, `#licks`, `#library`, `#transcribe`, …); the old `#today` hash opens Licks. The Routine sections "Learn licks" and "Learn tunes" have an "Open Licks/Tunes" button; the Licks and Tunes tabs show that section's checklist above the page, with a "Done — back to Routine" button. Opening a lick or a tune pushes a history entry so the back arrow returns to the previous view.
 
 Visual style: dark theme, brass/gold accent (`#d9a441`-like), red `--again` for errors, panels with 1px lines and 8px radius, monospace for chord text. Layout is responsive: 4-column bar grid collapses to 2 columns below 900 px.
 
@@ -167,7 +167,7 @@ A generic `api(path, opts)` helper: JSON in/out; non-2xx responses throw an Erro
 
 ---
 
-## 6. Today page
+## 6. Licks page (formerly Today)
 
 Shows today's session: first **reviews that are due** (most overdue first, capped by `max_reviews`, default 20), then **new licks** (`new_per_day`, default 2; favourites first).
 

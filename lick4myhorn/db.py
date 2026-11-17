@@ -114,10 +114,10 @@ DEFAULT_ROUTINE = [
         "Long tones", "Lip slurs / flexibility", "Mouthpiece buzzing", "Easy scales at a slow tempo")},
     {"id": "technical", "title": "Technical study", "items": _items(
         "Scales and arpeggios in all keys", "Interval / pattern exercises", "Tonguing or articulation study")},
-    {"id": "tunes", "title": "Learn tunes", "items": _items(
-        "Melody from memory", "Chord tones / guide tones over the changes", "Solo over the form with a backing track")},
     {"id": "licks", "title": "Learn licks", "items": _items(
         "Today's lick session (reviews + new)", "One lick in all 12 keys")},
+    {"id": "tunes", "title": "Learn tunes", "items": _items(
+        "Melody from memory", "Chord tones / guide tones over the changes", "Solo over the form with a backing track")},
     {"id": "cooldown", "title": "Cool down", "items": _items(
         "Soft low-register playing", "Long tones, pp", "Rest the chops")},
 ]
