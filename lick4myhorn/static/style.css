@@ -277,3 +277,4 @@ details.rsec summary { cursor: pointer; }
 
 /* routine checklist docked above the Licks and Tunes pages */
 .rdock { margin-bottom: 16px; }
+#pTrouble.on { background: rgba(224, 82, 82, .18); border-color: var(--again); color: var(--again); font-weight: 600; }
