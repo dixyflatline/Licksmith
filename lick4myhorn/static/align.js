@@ -152,7 +152,7 @@ async function alignOpen(work, usable) {
       ctx.fillRect(t2x(T[i]), H.ruler, (T[i + 1] - T[i]) * A.pps, HT - H.ruler);
     });
     if (A.pick && A.pick.b > A.pick.a) {
-      ctx.fillStyle = "rgba(90,155,208,.16)";
+      ctx.fillStyle = "rgba(210,35,27,.22)";
       ctx.fillRect(t2x(T[A.pick.a - 1]), H.ruler, (T[A.pick.b] - T[A.pick.a - 1]) * A.pps, HT - H.ruler);
     }
     pitchLane(A.D.horn, LANES.horn);

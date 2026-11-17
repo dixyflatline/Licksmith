@@ -7,7 +7,8 @@
   --muted: #9aa0ab;
   --brass: #f2ba2b;          /* logo gold, a touch softer for text */
   --brass-dim: #8f6f1d;
-  --red: #d2231b;            /* logo red: used only for small accents */
+  --red: #d2231b;            /* logo red: whatever is chosen / selected right now */
+  /* colour rule: gold = something you can click, red = what is chosen */
   --good: #5fb37c;
   --hard: #d6a03c;
   --again: #d0605a;
@@ -32,7 +33,8 @@ nav.tabs a {
   color: var(--muted); text-decoration: none; padding: 8px 14px; border-radius: 8px; font-weight: 500;
 }
 nav.tabs a.active { color: var(--text); background: var(--panel-2); box-shadow: inset 0 -2px 0 var(--red); }
-nav.tabs a:hover { color: var(--text); }
+nav.tabs a:hover { color: var(--brass); }
+nav.tabs a.active:hover { color: var(--text); }
 .top .spacer { flex: 1; }
 .navarrows { display: flex; gap: 2px; margin-right: 6px; }
 .navarrows button { padding: 2px 10px; font-size: 16px; line-height: 1.2; }
@@ -59,9 +61,10 @@ button, .btn {
   padding: 8px 14px; font: inherit; cursor: pointer; text-decoration: none; display: inline-flex;
   align-items: center; gap: 6px;
 }
-button:hover, .btn:hover { border-color: var(--muted); }
+button:not(:disabled):hover, .btn:hover { border-color: var(--brass); color: var(--brass); }
+button.primary:hover, button.danger:hover { color: inherit; }
 button.primary { background: var(--brass); color: #1b1608; border-color: var(--brass); font-weight: 600; }
-button.primary:hover { filter: brightness(1.08); }
+button.primary:hover { filter: brightness(1.08); color: #1b1608; }
 button.ghost { background: transparent; }
 button.danger { color: var(--again); }
 button:disabled { opacity: .45; cursor: default; }
@@ -71,7 +74,7 @@ input, select, textarea {
   padding: 7px 10px; font: inherit;
 }
 input[type=range] { padding: 0; accent-color: var(--brass); }
-input[type=checkbox] { accent-color: var(--brass); }
+input[type=checkbox] { accent-color: var(--red); }   /* a ticked box is a chosen one */
 label.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
 label.field input, label.field select, label.field textarea { color: var(--text); font-size: 14px; }
 label.check { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
@@ -88,8 +91,9 @@ label.check { display: inline-flex; align-items: center; gap: 6px; font-size: 14
 .badge.reviewing { background: #23402e; color: #8fd4a6; }
 .badge.known { background: #1f3b3b; color: #7fd1cf; }
 .badge.lapsed { background: #4a2523; color: #f09a94; }
+.star:hover { color: var(--brass); }
 .star { cursor: pointer; color: var(--muted); font-size: 18px; user-select: none; }
-.star.on { color: var(--brass); }
+.star.on { color: var(--red); }
 
 .paper {
   background: var(--paper); border-radius: var(--radius); padding: 10px 14px; min-height: 120px;
@@ -115,9 +119,10 @@ label.check { display: inline-flex; align-items: center; gap: 6px; font-size: 14
 .keys { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
 .key {
   min-width: 52px; text-align: center; padding: 7px 8px; border-radius: 8px; background: var(--panel);
-  border: 1px solid var(--line); cursor: pointer; font-weight: 600; position: relative;
+  border: 1px solid var(--brass-dim); cursor: pointer; font-weight: 600; position: relative;
 }
-.key.current { background: var(--brass); color: #1b1608; border-color: var(--brass); }
+.key:hover { border-color: var(--brass); color: var(--brass); }
+.key.current, .key.current:hover { background: var(--red); color: #fff; border-color: var(--red); }
 .key.done::after { content: "✓"; position: absolute; top: -7px; right: -4px; font-size: 11px; color: var(--good); }
 .key.trouble { box-shadow: inset 0 0 0 2px var(--again); }
 .key.outrange { opacity: .6; }
@@ -158,8 +163,8 @@ tr.clickable:hover td { background: #1b1e25; }
 .tune-layout { display: grid; grid-template-columns: 280px 1fr; gap: 18px; }
 .tune-list { max-height: 75vh; overflow-y: auto; }
 .tune-list div { padding: 7px 10px; border-radius: 7px; cursor: pointer; }
-.tune-list div:hover { background: var(--panel-2); }
-.tune-list div.sel { background: var(--panel-2); color: var(--brass); }
+.tune-list div:hover { background: var(--panel-2); color: var(--brass); }
+.tune-list div.sel { background: var(--panel-2); color: var(--text); box-shadow: inset 3px 0 0 var(--red); }
 .chart { display: grid; grid-template-columns: repeat(4, 1fr); border-left: 2px solid var(--muted); margin: 10px 0; }
 .chart .bar { border-right: 1px solid var(--muted); padding: 10px 8px; min-height: 46px; font-weight: 600;
   border-bottom: 1px solid var(--line); position: relative; font-size: 14px; }
@@ -206,16 +211,17 @@ button.listen { padding: 4px 9px; font-size: 13px; border-color: var(--line); co
 .al-bar-head .spacer { flex: 1; }
 .al-svg { min-height: 70px; padding: 2px; }
 .al-svg g.note { cursor: ns-resize; }
-.al-svg g.note.sel { fill: #d9a441; color: #d9a441; }
-.al-svg g.note.sel * { fill: #d9a441; stroke: #d9a441; }
+.al-svg g.note.sel { fill: var(--red); color: var(--red); }
+.al-svg g.note.sel * { fill: var(--red); stroke: var(--red); }
 .al-svg g.note.play * { fill: #d0605a; stroke: #d0605a; }
 .al-abc { width: 100%; box-sizing: border-box; margin-top: 6px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
 .al-issue { color: var(--again); font-size: 12px; margin-top: 4px; }
-.al-bar.picked { border-color: #5a9bd0; box-shadow: 0 0 0 1px #5a9bd0; }
-.al-pick { cursor: pointer; padding: 0 4px; border-radius: 4px; }
+.al-bar.picked { border-color: var(--red); box-shadow: 0 0 0 1px var(--red); }
+.al-pick { color: var(--brass); cursor: pointer; padding: 0 4px; border-radius: 4px; }
 .al-pick:hover { background: var(--panel-2); }
-.al-pick::before { content: "\2610\00a0"; color: var(--muted); font-weight: 400; }
-.al-bar.picked .al-pick::before { content: "\2611\00a0"; color: #5a9bd0; }
+.al-pick::before { content: "\2610\00a0"; color: var(--brass); font-weight: 400; }
+.al-bar.picked .al-pick::before { content: "\2611\00a0"; color: var(--red); }
+.al-bar.picked .al-pick { color: var(--text); }
 .al-pick-panel { padding: 10px 14px; margin-bottom: 10px; }
 .mono { font-family: ui-monospace, Menlo, monospace; }
 .al-btns { display: inline-flex; }
@@ -224,26 +230,27 @@ button.listen { padding: 4px 9px; font-size: 13px; border-color: var(--line); co
 .al-btns button:last-child { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -1px; }
 .al-sticky { position: sticky; top: 56px; z-index: 4; box-shadow: 0 6px 14px rgba(0,0,0,.45); }
 .al-bar { scroll-margin-top: var(--al-top, 0px); }
-.al-svg g.rest.sel *, .al-svg g.mRest.sel * { fill: #d9a441; stroke: #d9a441; }
+.al-svg g.rest.sel *, .al-svg g.mRest.sel * { fill: var(--red); stroke: var(--red); }
 .al-svg g.rest, .al-svg g.mRest { cursor: pointer; }
 .al-svg g .hit { fill: #000 !important; fill-opacity: 0 !important; stroke: none !important; pointer-events: all; }
 .al-pick-row { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
 .al-pick-row .row { gap: 8px; }
 #abcSave.dirty { box-shadow: 0 0 0 2px #d0605a; }
-#abcSheet g.sel, #abcSheet g.sel * { fill: #d9a441; stroke: #d9a441; }
+#abcSheet g.sel, #abcSheet g.sel * { fill: var(--red); stroke: var(--red); }
 #abcSheet g.note { cursor: ns-resize; }
 #abcSheet g.rest, #abcSheet g.mRest { cursor: pointer; }
 #abcSheet g .hit { fill: #000 !important; fill-opacity: 0 !important; stroke: none !important; pointer-events: all; }
 th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
-th.sortable:hover { color: var(--text); }
+th.sortable:hover { color: var(--brass); }
 th.sortable[data-dir]:not([data-dir=""])::after { content: " " attr(data-dir); color: var(--brass); font-size: 11px; }
 #abcSheet g.play, #abcSheet g.play * { fill: #e5484d; stroke: #e5484d; }
 #pSheet g.play, #pSheet g.play * { fill: #e5484d; stroke: #e5484d; }
 
 /* Transcribe tab */
 .band-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.band-chip { cursor: pointer; user-select: none; }
-.band-chip.on { color: var(--brass); border-color: var(--brass); background: rgba(217, 164, 65, .12); }
+.band-chip { cursor: pointer; user-select: none; border-color: var(--brass-dim); }
+.band-chip:hover { border-color: var(--brass); color: var(--brass); }
+.band-chip.on, .band-chip.on:hover { color: var(--text); border-color: var(--red); background: rgba(210, 35, 27, .22); }
 .tr-job { padding: 8px 0 4px; border-top: 1px solid var(--line); margin-top: 6px; }
 .tr-state { min-width: 96px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .tr-job.done .tr-state { color: var(--good, #6bbf7a); }

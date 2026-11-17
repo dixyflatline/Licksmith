@@ -1111,7 +1111,7 @@ function barMenu(b) {
   box.innerHTML = `<div class="row"><b class="grow">Licks that fit at bar ${b + 1}</b>
       ${cur ? `<button id="bmRemove">Leave bar${cur.bars > 1 ? "s" : ""} empty</button>` : ""}<button class="ghost" id="bmClose">✕</button></div>
     <div class="lick-list" style="margin-top:8px">${cs.slice(0, 20).map((c, i) =>
-    `<div class="lick-item" ${cur && cur.lick_id === c.lick_id ? 'style="border-color:var(--brass)"' : ""}>${playBtn("data-clisten", i)}
+    `<div class="lick-item" ${cur && cur.lick_id === c.lick_id ? 'style="border-color:var(--red)"' : ""}>${playBtn("data-clisten", i)}
      <span class="star ${c.favorite ? "on" : ""}" data-cstar="${i}" title="Favorite">★</span>
      <div class="grow">${esc(c.label)} <span class="muted small">in ${esc(c.key)}${c.fits_range ? "" : " · out of range"}</span></div>
      ${cur && cur.lick_id === c.lick_id ? '<span class="muted small">placed</span>' : `<button data-add="${i}">Use this</button>`}</div>`).join("")}</div>`;
