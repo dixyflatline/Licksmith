@@ -43,7 +43,8 @@ solo" and type bar ranges like `17-20, 33-36`.
 
 **Pages.**
 
-- *Today*: reviews that are due, then new licks (2 a day by default, favorites first).
+- *Routine* (landing page): your daily practice checklist. "Learn licks" opens the Licks tab and "Learn tunes" opens the Tunes tab, each showing its own checklist with a "Done" button back to the Routine.
+- *Licks* (was Today): reviews that are due, then new licks (2 a day by default, favorites first).
 - *Practice*: the lick in each key, in your key order. Play runs a count-in, the lick, then
   the same bars with only the band so you play it back; it moves to the next key after N
   times. Space = play/stop, T = mark the key as hard, 1–4 = rate Again / Hard / Good / Easy.

@@ -274,3 +274,6 @@ details.rsec summary { cursor: pointer; }
 .rday i { width: 14px; height: 14px; border-radius: 50%; background: var(--line); display: block; }
 .rday.some i { background: var(--brass-dim); }
 .rday.full i { background: var(--good); }
+
+/* routine checklist docked above the Licks and Tunes pages */
+.rdock { margin-bottom: 16px; }
