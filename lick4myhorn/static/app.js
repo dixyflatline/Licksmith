@@ -758,7 +758,7 @@ async function openLick(id, nav = "push") {
         <b>↑ ↓</b> semitone · <b>⌘↑ ⌘↓</b> octave · <b>Alt ↑↓</b> scale step · <b>A–G</b> note name (on a rest: makes a note) ·
         <b>1 2 4 8 6</b> whole / half / quarter / eighth / sixteenth · <b>.</b> dotted · <b>/</b> grace note (again = remove; <b>?</b> = unslashed) · <b>⌘3</b> triplet beat · <b>T</b> tie to the next note · <b>Delete</b> rest ·
         <b>← →</b> move · <b>⌘Z</b> undo · <b>⌘S</b> save.</div>
-      <div class="paper" id="abcSheet" style="margin:6px 0 10px"></div>
+      <div class="paper big" id="abcSheet" style="margin:6px 0 10px"></div>
       <div class="grid cols-4" style="margin-top:8px">
         <label class="field">Key signature<select id="abcKey"></select></label>
         <label class="field">Time signature<input id="abcMeter" value="4/4"></label>
