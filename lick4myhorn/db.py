@@ -90,11 +90,40 @@ CREATE TABLE IF NOT EXISTS plans(
   file TEXT
 );
 CREATE TABLE IF NOT EXISTS settings(k TEXT PRIMARY KEY, v TEXT);
+CREATE TABLE IF NOT EXISTS routine_notes(
+  day TEXT,
+  item TEXT,
+  note TEXT,
+  PRIMARY KEY(day, item)
+);
+CREATE TABLE IF NOT EXISTS routine_checks(
+  day TEXT,
+  item TEXT,
+  PRIMARY KEY(day, item)
+);
 CREATE INDEX IF NOT EXISTS reviews_lick ON reviews(lick_id);
 CREATE INDEX IF NOT EXISTS reviews_ts ON reviews(ts);
 """
 
+def _items(*texts):
+    return [{"id": "", "text": t} for t in texts]
+
+
+DEFAULT_ROUTINE = [
+    {"id": "warmup", "title": "Warm up", "items": _items(
+        "Long tones", "Lip slurs / flexibility", "Mouthpiece buzzing", "Easy scales at a slow tempo")},
+    {"id": "technical", "title": "Technical study", "items": _items(
+        "Scales and arpeggios in all keys", "Interval / pattern exercises", "Tonguing or articulation study")},
+    {"id": "tunes", "title": "Learn tunes", "items": _items(
+        "Melody from memory", "Chord tones / guide tones over the changes", "Solo over the form with a backing track")},
+    {"id": "licks", "title": "Learn licks", "items": _items(
+        "Today's lick session (reviews + new)", "One lick in all 12 keys")},
+    {"id": "cooldown", "title": "Cool down", "items": _items(
+        "Soft low-register playing", "Long tones, pp", "Rest the chops")},
+]
+
 DEFAULTS = {
+    "routine": DEFAULT_ROUTINE,     # practice checklist: sections of items, checked off once per day
     "display": "written",          # written (B-flat) | concert
     "range_low": 54,               # written F#3
     "range_high": 84,              # written C6
@@ -187,6 +216,57 @@ class DB:
                 self.conn.execute("INSERT OR REPLACE INTO settings(k, v) VALUES(?, ?)", (k, json.dumps(v)))
         self.conn.commit()
         return self.settings()
+
+    # ------------------------------------------------------------------ routine checklist
+    def routine(self) -> list[dict]:
+        """The checklist template; every section and item gets a stable id so ticks survive renames."""
+        out = []
+        for si, sec in enumerate(self.settings().get("routine") or []):
+            sid = str(sec.get("id") or f"s{si}")
+            items = [{"id": str(it.get("id") or f"{sid}-{ii}"), "text": str(it.get("text", "")).strip()}
+                     for ii, it in enumerate(sec.get("items", [])) if str(it.get("text", "")).strip()]
+            out.append({"id": sid, "title": str(sec.get("title", "")).strip() or "Section", "items": items})
+        return out
+
+    def routine_checked(self, day: str) -> list[str]:
+        return [r["item"] for r in self.q("SELECT item FROM routine_checks WHERE day=?", (day,))]
+
+    def routine_set(self, day: str, item: str, done: bool) -> None:
+        if done:
+            self.conn.execute("INSERT OR IGNORE INTO routine_checks(day, item) VALUES(?,?)", (day, item))
+        else:
+            self.conn.execute("DELETE FROM routine_checks WHERE day=? AND item=?", (day, item))
+        self.conn.commit()
+
+    def routine_notes(self, day: str) -> dict:
+        return {r["item"]: r["note"] for r in self.q("SELECT item, note FROM routine_notes WHERE day=?", (day,))}
+
+    def routine_note_set(self, day: str, item: str, note: str) -> None:
+        note = note.strip()
+        if note:
+            self.conn.execute("INSERT OR REPLACE INTO routine_notes(day, item, note) VALUES(?,?,?)", (day, item, note))
+        else:
+            self.conn.execute("DELETE FROM routine_notes WHERE day=? AND item=?", (day, item))
+        self.conn.commit()
+
+    def routine_log(self, since: str) -> list[dict]:
+        """Every tick and note since a day, newest first, with the section and item text they belong to."""
+        names = {it["id"]: (sec["title"], it["text"]) for sec in self.routine() for it in sec["items"]}
+        rows: dict = {}
+        for r in self.q("SELECT day, item FROM routine_checks WHERE day>=?", (since,)):
+            rows[(r["day"], r["item"])] = {"day": r["day"], "item": r["item"], "done": True, "note": ""}
+        for r in self.q("SELECT day, item, note FROM routine_notes WHERE day>=?", (since,)):
+            rows.setdefault((r["day"], r["item"]), {"day": r["day"], "item": r["item"], "done": False})["note"] = r["note"]
+        out = []
+        for row in rows.values():
+            if row["item"] in names:
+                row["section"], row["text"] = names[row["item"]]
+                out.append(row)
+        return sorted(out, key=lambda r: r["day"], reverse=True)
+
+    def routine_counts(self, since: str) -> dict:
+        return {r["day"]: r["n"] for r in
+                self.q("SELECT day, COUNT(*) n FROM routine_checks WHERE day>=? GROUP BY day", (since,))}
 
     # ------------------------------------------------------------------ licks
     def next_number(self) -> int:

@@ -255,3 +255,22 @@ th.sortable[data-dir]:not([data-dir=""])::after { content: " " attr(data-dir); c
 .tr-mark { display: inline-block; width: 1.2em; }
 .tr-steps li.done .tr-mark { color: var(--good, #6bbf7a); }
 .tr-steps li.active .tr-mark { color: var(--brass); }
+
+/* practice routine checklist */
+.rsec { margin-bottom: 14px; }
+.ritem { padding: 6px 4px; border-top: 1px solid var(--line); }
+.ritem .check { cursor: pointer; padding: 2px 0; }
+.rnote { width: calc(100% - 28px); margin: 4px 0 8px 28px; background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px; font: inherit; resize: vertical; }
+.rlog { padding: 8px 0; border-top: 1px solid var(--line); }
+details.rsec summary { cursor: pointer; }
+.ritem.done span { color: var(--muted); text-decoration: line-through; }
+.ritem input { width: 18px; height: 18px; accent-color: var(--brass); }
+.ritem-edit { margin: 6px 0; }
+.rbar { height: 10px; background: var(--panel-2); border-radius: 6px; overflow: hidden; min-width: 120px; }
+.rbar > div { height: 100%; background: var(--brass); transition: width .2s; }
+.rweek { display: flex; gap: 6px; }
+.rday { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); }
+.rday i { width: 14px; height: 14px; border-radius: 50%; background: var(--line); display: block; }
+.rday.some i { background: var(--brass-dim); }
+.rday.full i { background: var(--good); }

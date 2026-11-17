@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from fastapi import Body, FastAPI, File, Form, HTTPException, UploadFile
@@ -21,6 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from . import analysis as A
 from . import licks as L
 from . import srs
+from .db import DEFAULT_ROUTINE
 from .library import Library
 
 STATIC = Path(__file__).parent / "static"
@@ -265,7 +266,7 @@ def create_app(root: Path) -> FastAPI:
     @app.get("/api/meta")
     async def meta():
         return {"functions": A.FUNCTIONS, "orders": L.ORDERS, "root": str(lib.root),
-                "library": str(lib.lib)}
+                "library": str(lib.lib), "default_routine": DEFAULT_ROUTINE}
 
     @app.get("/api/settings")
     async def get_settings():
@@ -275,6 +276,63 @@ def create_app(root: Path) -> FastAPI:
     async def put_settings(values: dict = Body(...)):
         lib._svg_cache.clear()
         return lib.db.set_settings(values)
+
+    # ---------------------------------------------------------------- practice routine checklist
+    def _day(d: str | None) -> str:
+        d = d or datetime.now().strftime("%Y-%m-%d")
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", d):
+            raise HTTPException(400, "day must be YYYY-MM-DD")
+        return d
+
+    @app.get("/api/routine")
+    async def get_routine(day: str | None = None):
+        day = _day(day)
+        sections = lib.db.routine()
+        valid = {it["id"] for s in sections for it in s["items"]}
+        checked = [i for i in lib.db.routine_checked(day) if i in valid]
+        since = (datetime.strptime(day, "%Y-%m-%d") - timedelta(days=6)).strftime("%Y-%m-%d")
+        return {"day": day, "sections": sections, "checked": checked,
+                "notes": {k: v for k, v in lib.db.routine_notes(day).items() if k in valid},
+                "total": len(valid), "history": lib.db.routine_counts(since)}
+
+    @app.put("/api/routine")
+    async def put_routine(body: dict = Body(...)):
+        secs = body.get("sections")
+        if not isinstance(secs, list):
+            raise HTTPException(400, "sections must be a list")
+        lib.db.set_settings({"routine": [
+            {"id": str(s.get("id", "")), "title": str(s.get("title", "")),
+             "items": [{"id": str(i.get("id", "")), "text": str(i.get("text", ""))} for i in s.get("items", [])]}
+            for s in secs]})
+        return await get_routine(body.get("day"))
+
+    @app.post("/api/routine/note")
+    async def routine_note(body: dict = Body(...)):
+        lib.db.routine_note_set(_day(body.get("day")), str(body["item"]), str(body.get("note", "")))
+        return {"ok": True}
+
+    @app.get("/api/routine/log")
+    async def routine_log(days: int = 60):
+        since = (datetime.now() - timedelta(days=max(1, min(days, 3650)))).strftime("%Y-%m-%d")
+        return lib.db.routine_log(since)
+
+    @app.get("/api/routine/export.csv")
+    async def routine_export(days: int = 3650):
+        import csv
+        import io
+        since = (datetime.now() - timedelta(days=max(1, min(days, 3650)))).strftime("%Y-%m-%d")
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(["date", "section", "item", "done", "note"])
+        for r in sorted(lib.db.routine_log(since), key=lambda r: (r["day"], r["section"], r["text"])):
+            w.writerow([r["day"], r["section"], r["text"], "yes" if r["done"] else "no", r["note"]])
+        return Response(buf.getvalue(), media_type="text/csv; charset=utf-8",
+                        headers={"Content-Disposition": 'attachment; filename="licksmith-routine.csv"'})
+
+    @app.post("/api/routine/check")
+    async def routine_check(body: dict = Body(...)):
+        lib.db.routine_set(_day(body.get("day")), str(body["item"]), bool(body.get("done")))
+        return {"ok": True}
 
     # ---------------------------------------------------------------- today / review
     @app.get("/api/today")

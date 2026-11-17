@@ -184,6 +184,138 @@ VIEWS.today = async () => {
   wireListen();
 };
 
+/* ---------------------------------------------------------------- Routine (daily practice checklist) */
+const localDay = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const newId = () => "i" + Math.random().toString(36).slice(2, 9);
+
+VIEWS.routine = async () => {
+  const day = localDay();
+  const R = await api(`/api/routine?day=${day}`);
+  const done = new Set(R.checked);
+  const notes = { ...R.notes };
+  const open = new Set(Object.keys(notes));   // items whose comment box is showing
+  const log = await api("/api/routine/log?days=60").catch(() => []);
+  const draw = () => {
+    const n = done.size, pct = R.total ? Math.round(100 * n / R.total) : 0;
+    const strip = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(); d.setDate(d.getDate() - (6 - i));
+      const k = localDay(d), c = R.history[k] || 0;
+      const full = R.total && c >= R.total;
+      return `<div class="rday ${full ? "full" : c ? "some" : ""}" title="${k}: ${c} of ${R.total}"><b>${d.toLocaleDateString(undefined, { weekday: "narrow" })}</b><i></i></div>`;
+    }).join("");
+    main().innerHTML = `
+      <div class="row"><h1 class="grow">Practice routine</h1><a class="btn" href="/api/routine/export.csv" download title="All ticks and notes as a spreadsheet (CSV)">Export CSV</a><button id="rEdit">Edit routine</button></div>
+      <p class="sub">Everything you do every practice session. Ticks reset each day.</p>
+      <div class="hero">
+        <div class="tile"><div class="n">${n}/${R.total}</div><div class="l">done today</div></div>
+        <div class="grow"><div class="rbar"><div style="width:${pct}%"></div></div></div>
+        <div class="rweek" title="Last 7 days">${strip}</div>
+        ${n ? `<button class="ghost" id="rClear">Clear today</button>` : ""}
+      </div>
+      ${R.sections.map(sec => {
+        const c = sec.items.filter(i => done.has(i.id)).length;
+        return `<div class="card rsec"><div class="row"><h3 class="grow">${esc(sec.title)}</h3>
+          <span class="small muted">${c}/${sec.items.length}</span></div>
+          ${sec.items.map(i => `<div class="ritem ${done.has(i.id) ? "done" : ""}">
+            <div class="row"><label class="check grow"><input type="checkbox" data-item="${esc(i.id)}" ${done.has(i.id) ? "checked" : ""}> <span>${esc(i.text)}</span></label>
+              <button class="ghost small" data-note="${esc(i.id)}" title="Add a comment">${notes[i.id] ? "💬" : "＋ note"}</button></div>
+            ${open.has(i.id) ? `<textarea class="rnote" data-ta="${esc(i.id)}" rows="2" placeholder="How did it go? Tempo, trouble spots, what to fix…">${esc(notes[i.id] || "")}</textarea>` : ""}</div>`).join("")
+          || `<div class="muted small">No items. Use Edit routine to add some.</div>`}</div>`;
+      }).join("")}
+      ${(() => {
+        const past = log.filter(r => r.note && r.day !== day);
+        return past.length ? `<details class="card rsec"><summary><b>Past notes</b> <span class="small muted">(${past.length}, last 60 days)</span></summary>
+          ${past.map(r => `<div class="rlog"><span class="muted small">${esc(r.day)} · ${esc(r.section)}</span>
+            <div><b>${esc(r.text)}</b>${r.done ? "" : ` <span class="muted small">(not ticked)</span>`}</div><div>${esc(r.note)}</div></div>`).join("")}</details>` : "";
+      })()}`;
+    $$("[data-note]").forEach(b => b.onclick = () => {
+      const id = b.dataset.note;
+      open.has(id) ? open.delete(id) : open.add(id);
+      draw();
+      const ta = $(`[data-ta="${CSS.escape(id)}"]`); if (ta) ta.focus();
+    });
+    $$("[data-ta]").forEach(ta => ta.onchange = async () => {
+      const id = ta.dataset.ta;
+      notes[id] = ta.value.trim();
+      if (!notes[id]) delete notes[id];
+      const i = log.findIndex(r => r.day === day && r.item === id);
+      if (i >= 0) log.splice(i, 1);
+      const it = R.sections.flatMap(s => s.items.map(x => ({ ...x, section: s.title }))).find(x => x.id === id);
+      if (it && (notes[id] || done.has(id))) log.unshift({ day, item: id, done: done.has(id), note: notes[id] || "", section: it.section, text: it.text });
+      try { await api("/api/routine/note", { body: { day, item: id, note: ta.value } }); }
+      catch (e) { toast(e.message); }
+    });
+    $$("[data-item]").forEach(cb => cb.onchange = async () => {
+      const id = cb.dataset.item;
+      cb.checked ? done.add(id) : done.delete(id);
+      R.history[day] = done.size;
+      draw();
+      try { await api("/api/routine/check", { body: { day, item: id, done: cb.checked } }); }
+      catch (e) { toast(e.message); }
+    });
+    const clr = $("#rClear");
+    if (clr) clr.onclick = async () => {
+      for (const id of [...done]) await api("/api/routine/check", { body: { day, item: id, done: false } });
+      done.clear(); R.history[day] = 0; draw();
+    };
+    $("#rEdit").onclick = () => edit();
+  };
+  const edit = () => {
+    const secs = JSON.parse(JSON.stringify(R.sections));
+    const drawEdit = () => {
+      main().innerHTML = `
+        <div class="row"><h1 class="grow">Edit routine</h1>
+          <button class="ghost" id="eReset">Reset to default</button><button id="eCancel">Cancel</button>
+          <button class="primary" id="eSave">Save</button></div>
+        <p class="sub">Rename sections, add or remove items, and reorder with the arrows.</p>
+        ${secs.map((sec, si) => `<div class="card rsec"><div class="row">
+          <input class="grow" data-st="${si}" value="${esc(sec.title)}" placeholder="Section name">
+          <button class="ghost" data-sup="${si}" ${si ? "" : "disabled"}>↑</button>
+          <button class="ghost" data-sdn="${si}" ${si < secs.length - 1 ? "" : "disabled"}>↓</button>
+          <button class="ghost" data-sdel="${si}" title="Delete section">✕</button></div>
+          ${sec.items.map((it, ii) => `<div class="row ritem-edit">
+            <input class="grow" data-it="${si}:${ii}" value="${esc(it.text)}" placeholder="Item">
+            <button class="ghost" data-iup="${si}:${ii}" ${ii ? "" : "disabled"}>↑</button>
+            <button class="ghost" data-idn="${si}:${ii}" ${ii < sec.items.length - 1 ? "" : "disabled"}>↓</button>
+            <button class="ghost" data-idel="${si}:${ii}" title="Delete item">✕</button></div>`).join("")}
+          <button class="ghost" data-iadd="${si}">+ Add item</button></div>`).join("")}
+        <button id="sAdd" style="margin-top:14px">+ Add section</button>`;
+      const pair = v => v.split(":").map(Number);
+      const swap = (a, i, j) => { [a[i], a[j]] = [a[j], a[i]]; };
+      const again = fn => () => { fn(); drawEdit(); };
+      $$("[data-st]").forEach(el => el.oninput = () => { secs[+el.dataset.st].title = el.value; });
+      $$("[data-it]").forEach(el => el.oninput = () => { const [a, b] = pair(el.dataset.it); secs[a].items[b].text = el.value; });
+      $$("[data-sup]").forEach(b => b.onclick = again(() => swap(secs, +b.dataset.sup, +b.dataset.sup - 1)));
+      $$("[data-sdn]").forEach(b => b.onclick = again(() => swap(secs, +b.dataset.sdn, +b.dataset.sdn + 1)));
+      $$("[data-sdel]").forEach(b => b.onclick = again(() => secs.splice(+b.dataset.sdel, 1)));
+      $$("[data-iup]").forEach(b => b.onclick = again(() => { const [a, i] = pair(b.dataset.iup); swap(secs[a].items, i, i - 1); }));
+      $$("[data-idn]").forEach(b => b.onclick = again(() => { const [a, i] = pair(b.dataset.idn); swap(secs[a].items, i, i + 1); }));
+      $$("[data-idel]").forEach(b => b.onclick = again(() => { const [a, i] = pair(b.dataset.idel); secs[a].items.splice(i, 1); }));
+      $$("[data-iadd]").forEach(b => b.onclick = again(() => secs[+b.dataset.iadd].items.push({ id: newId(), text: "" })));
+      $("#sAdd").onclick = again(() => secs.push({ id: newId(), title: "New section", items: [] }));
+      $("#eCancel").onclick = draw;
+      $("#eReset").onclick = async () => {
+        if (!confirm("Replace your routine with the default one?")) return;
+        const d = (await api("/api/meta")).default_routine;
+        secs.splice(0, secs.length, ...JSON.parse(JSON.stringify(d)));
+        drawEdit();
+      };
+      $("#eSave").onclick = async () => {
+        try {
+          const out = await api("/api/routine", { method: "PUT", body: { day, sections: secs } });
+          Object.assign(R, out);
+          const valid = new Set(R.sections.flatMap(s => s.items.map(i => i.id)));
+          for (const id of [...done]) if (!valid.has(id)) done.delete(id);
+          toast("Routine saved");
+          draw();
+        } catch (e) { toast(e.message); }
+      };
+    };
+    drawEdit();
+  };
+  draw();
+};
+
 /* ---------------------------------------------------------------- Practice */
 async function startPractice(ids, idx) {
   S.practice = { ids, idx, results: [] };
