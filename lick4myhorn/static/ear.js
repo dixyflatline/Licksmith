@@ -100,7 +100,12 @@ VIEWS.learn = async () => {
     playOnce: (span, mode) => {
       stop();
       A.rate = pref.speed / 100;
-      A.onEnd = () => { A.onEnd = null; A.rate = 1; };
+      // when it has played, the cursor and the highlight go back to the first bar played, not on to the next one
+      A.onEnd = () => {
+        A.onEnd = null; A.rate = 1;
+        if (A.audio) A.audio.currentTime = A.times[span.a - 1];
+        A.showBar(span.a - 1);
+      };
       A.playRange(span.a, span.b, mode);
     },
     onPick: p => { if (p) { pref.a = p.a; pref.b = p.b; remember(); } else { pref.a = pref.b = 0; remember(); } },
