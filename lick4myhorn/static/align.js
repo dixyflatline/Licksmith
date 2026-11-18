@@ -198,11 +198,11 @@ async function alignOpen(work, usable, opts = {}) {
     }
     // tapped lines outside the form (and, while tapping or choosing bar 1, all the taps): dashed blue, numbered
     {
-      const P = A.tapPending, ex = P ? { lines: P.taps, start: P.start } : A.tap ? { lines: A.tap.taps, start: -1 } : A.D.tap_lines ? { lines: A.D.tap_lines, start: A.D.tap_start || 0 } : null;
+      const P = A.tapPending, ex = P ? { lines: P.taps, start: P.start, n: P.n } : A.tap ? { lines: A.tap.taps, start: -1 } : A.D.tap_lines ? { lines: A.D.tap_lines, start: A.D.tap_start || 0 } : null;
       if (ex) {
         ctx.save(); ctx.setLineDash([4, 3]); ctx.font = "10px system-ui";
         ex.lines.forEach((t, i) => {
-          const inForm = ex.start >= 0 && i >= ex.start && i <= ex.start + A.D.n;
+          const inForm = ex.start >= 0 && i >= ex.start && i <= ex.start + (ex.n ?? A.D.n);
           if (inForm && !P) return;   // already drawn as the form's own bar lines
           const x = t2x(t); if (x < -40 || x > W + 40) return;
           ctx.strokeStyle = inForm ? "#f2ba2b" : "#6fa8ff"; ctx.lineWidth = inForm ? 2 : 1;
@@ -471,17 +471,78 @@ async function alignOpen(work, usable, opts = {}) {
     // the tap nearest the current first bar line is the best guess for bar 1 of the form
     let start = 0, bd = Infinity;
     k.taps.slice(0, -1).forEach((t, i) => { const d = Math.abs(t - A.times[0]); if (d < bd) { bd = d; start = i; } });
-    A.tapPending = { taps: k.taps, start };
+    A.tapPending = { taps: k.taps, start, n: A.D.n, det: null, detMsg: "Matching the tapped bars to the chart…", manual: false };
     tapPanel(); draw(); msg("");
+    tapDetect(A.tapPending);
+  }
+  // Which of the tapped bars start a chorus? The chart's chord progression is matched against the bass of every tapped bar
+  // (tolerating extra tag bars, odd bars and parts of the recording that are not the tune).
+  async function tapDetect(p) {
+    try {
+      const r = await api(`/api/align/${work}/chords/choruses`, { method: "POST", body: { title: A.D.tune || A.D.title, lines: p.taps } });
+      if (A.tapPending !== p) return;
+      p.det = r; p.detMsg = "";
+      const full = r.choruses.filter(c => c.complete), cnt = Math.max(1, Math.round(A.D.n / (A.D.chart_len || r.chart_bars)) || 1);
+      // default: the run of `cnt` complete choruses with the best match (the first one if they tie)
+      let bestI = 0, bestS = -1;
+      for (let i = 0; i + Math.min(cnt, full.length) <= full.length; i++) {
+        const sc = full.slice(i, i + cnt).reduce((a, c) => a + (c.score || 0), 0);
+        if (sc > bestS + 1e-9) { bestS = sc; bestI = i; }
+      }
+      p.from = full.length ? full[bestI].n : 1; p.count = Math.min(cnt, Math.max(1, full.length)); p.tag = r.tag;
+      if (!full.length) { p.det = null; p.detMsg = "No complete chorus of the chart found in these taps: choose bar 1 by hand."; }
+      autoPreview(p);
+    } catch (err) { if (A.tapPending === p) { p.det = null; p.detMsg = `Could not match the chart (${err.message}): choose bar 1 by hand.`; } }
+    tapPanel(); draw();
+  }
+  // the gold preview follows the chosen choruses
+  function autoPreview(p) {
+    const r = p.det, c = r.choruses.find(x => x.n === p.from); if (!c) return;
+    p.start = c.start - 1; p.n = (r.chart_bars + p.tag) * p.count;
   }
   const fmtT = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
+  function autoPanel(el, p) {
+    const r = p.det, N = p.taps.length, nb = c => `${c.chart}${c.tag ? ` + ${c.tag} tag` : ""}`;
+    const full = r.choruses.filter(c => c.complete);
+    const opts = k => full.map(c => `<option value="${c.n}" ${c.n === k ? "selected" : ""}>${c.n}</option>`).join("");
+    el.innerHTML = `<div class="small">
+      <b>Matched your ${N} taps to ${esc(r.title)}</b> (${r.key ? "key of " + esc(r.key) + ", " : ""}${r.chart_bars}-bar chart). Choruses found:
+      <ul style="margin:4px 0 6px 18px">${r.choruses.map(c => `<li>Chorus ${c.n}: taps ${c.start}–${c.end}, ${fmtT(p.taps[c.start - 1])} to ${fmtT(p.taps[Math.min(c.end, N - 1)])}, ${nb(c)} bars, ${c.score == null ? "" : Math.round(c.score * 100) + "% of the bass matches"}${c.complete ? "" : " (partial)"}</li>`).join("")}</ul>
+      Transcribe chorus <select id="alChFrom">${opts(p.from)}</select> for <input id="alChCount" type="number" min="1" max="${full.length}" value="${p.count}" style="width:52px"> chorus(es), each with
+      <input id="alChTag" type="number" min="0" max="32" value="${p.tag}" style="width:52px"> tag bars after the chart.
+      <span id="alTapNote" class="muted"></span>
+      <label class="small" title="Off: only the bars you chose are kept. On: all your taps stay on the timeline, the others dashed."><input type="checkbox" id="alTapKeep"> keep the taps outside (dashed)</label>
+      <button class="primary" id="alTapApply">Apply</button> <button class="ghost" id="alTapHand">Choose bar 1 by hand</button> <button class="ghost" id="alTapCancel">Cancel</button></div>`;
+    const read = () => {
+      p.from = +$("#alChFrom").value; p.count = Math.max(1, Math.min(full.length, +$("#alChCount").value || 1)); p.tag = Math.max(0, +$("#alChTag").value || 0);
+      autoPreview(p);
+      const have = N - p.start - 1, odd = full.filter(c => c.n >= p.from && c.n < p.from + p.count && c.tag !== p.tag).length;
+      $("#alTapNote").textContent = (have < p.n ? `Only ${have} of the ${p.n} bars are tapped: the rest continue at the last bar length. ` : "")
+        + (odd ? `${odd} of these choruses had a different tag length, so their bar lines may be off there: fix them by hand.` : "");
+      draw();
+    };
+    ["alChFrom", "alChCount", "alChTag"].forEach(id => $("#" + id).oninput = read);
+    read();
+    $("#alTapHand").onclick = () => { p.manual = true; p.start = Math.max(0, p.start); p.n = A.D.n; tapPanel(); draw(); };
+    $("#alTapCancel").onclick = () => { A.tapPending = null; tapPanel(); draw(); msg("Tapping cancelled: the bar lines are unchanged."); };
+    $("#alTapApply").onclick = async () => {
+      msg("Re-quantizing…");
+      try {
+        const keep = $("#alTapKeep").checked, lines = keep ? p.taps : p.taps.slice(p.start, p.start + p.n + 1), start = keep ? p.start : 0;
+        const r2 = await api(`/api/align/${work}/chords/apply-choruses`, { method: "POST", body: { title: A.D.tune || A.D.title, transpose: p.det.transpose, lines, start, count: p.count, tag: p.tag } });
+        A.D = r2; A.times = r2.times.slice(); A.tapPending = null; tapPanel(); renderBars(); draw();
+        msg(`Set ${p.count} chorus${p.count === 1 ? "" : "es"} of ${r2.chart_len} bars starting at tap ${p.start + 1}. ↶ Undo restores the old bar lines (the chords come from the chart). Use ◀ ▶ to nudge if you tapped a little late.`);
+      } catch (err) { msg(err.message, true); }
+    };
+  }
   function tapPanel() {
     const el = $("#alTapPanel"); if (!el) return;
     const p = A.tapPending;
     if (!p) { el.style.display = "none"; el.innerHTML = ""; return; }
-    const N = p.taps.length, n = A.D.n;
     el.style.display = "";
-    el.innerHTML = `<div class="small"><b>You tapped ${N} bar lines</b> (${fmtT(p.taps[0])} to ${fmtT(p.taps[N - 1])}).
+    if (p.det && !p.manual) { autoPanel(el, p); return; }
+    const N = p.taps.length, n = A.D.n;
+    el.innerHTML = `<div class="small">${p.detMsg ? `<div class="muted" style="margin-bottom:4px">${esc(p.detMsg)}</div>` : ""}<b>You tapped ${N} bar lines</b> (${fmtT(p.taps[0])} to ${fmtT(p.taps[N - 1])}).
       Bar 1 of this song's form, the first bar of the solo, is tap # <input id="alTapStart" type="number" min="1" max="${N - 1}" value="${p.start + 1}" style="width:64px">.
       <span id="alTapNote" class="muted"></span>
       <label class="small" title="Off: only the form's bars are kept and the other taps are dropped. On: the other taps stay on the timeline as dashed blue lines, for another solo later."><input type="checkbox" id="alTapKeep"> keep the taps outside the form (dashed)</label>
