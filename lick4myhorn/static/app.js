@@ -204,14 +204,16 @@ const localDay = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() +
 const newId = () => "i" + Math.random().toString(36).slice(2, 9);
 
 // Routine sections that have a tab of their own: the section is worked on in that tab, with its checklist shown there.
-const ROUTINE_TABS = { licks: { label: "Licks", re: /lick/i }, tunes: { label: "Tunes", re: /tune/i } };
+const ROUTINE_TABS = { licks: { label: "Licks", re: /lick/i }, tunes: { label: "Play", re: /tune/i } };
+// Only the Play tab shows its section's checklist; Licks has none (use the Routine page).
+const DOCK_TABS = new Set(["tunes"]);
 const routineTabOf = sec => Object.keys(ROUTINE_TABS).find(t => sec.id === t) || Object.keys(ROUTINE_TABS).find(t => ROUTINE_TABS[t].re.test(sec.title));
 
 // The checklist of this tab's routine section, docked above the page; "Done" goes back to the Routine.
 async function renderDock(tab) {
   const dock = $("#routineDock");
   if (!dock) return;
-  if (!ROUTINE_TABS[tab]) { dock.innerHTML = ""; return; }
+  if (!DOCK_TABS.has(tab)) { dock.innerHTML = ""; return; }
   const day = localDay();
   let R;
   try { R = await api(`/api/routine?day=${day}`); } catch (e) { dock.innerHTML = ""; return; }
@@ -1052,7 +1054,7 @@ VIEWS.import = async () => {
     if ($("#plFile").files[0]) fd.append("file", $("#plFile").files[0]);
     fd.append("text", $("#plText").value); fd.append("name", $("#plName").value);
     $("#plMsg").textContent = "Importing…";
-    try { const r = await api("/api/playlist", { body: fd }); $("#plMsg").innerHTML = `${r.imported} tunes imported. <a href="#tunes">Open Tunes</a>`; }
+    try { const r = await api("/api/playlist", { body: fd }); $("#plMsg").innerHTML = `${r.imported} tunes imported. <a href="#tunes">Open Play</a>`; }
     catch (e) { $("#plMsg").textContent = e.message; }
   };
 };
@@ -1128,7 +1130,7 @@ function renderImportPreview(p, target, banner = "") {
 VIEWS.tunes = async () => {
   const tunes = await api("/api/tunes");
   main().innerHTML = `
-    <h1>Tunes</h1>
+    <h1>Play</h1>
     <p class="sub">${tunes.length} tunes from iReal. Pick one to see its harmony and fit your licks into it.</p>
     ${tunes.length ? "" : `<div class="card">No tunes yet. <a href="#import">Import an iReal playlist</a>.</div>`}
     <div class="tune-layout" ${tunes.length ? "" : 'style="display:none"'}>

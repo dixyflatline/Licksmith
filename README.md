@@ -49,7 +49,7 @@ solo" and type bar ranges like `17-20, 33-36`.
 
 **Pages.**
 
-- *Routine* (landing page): your daily practice checklist. "Learn licks" opens the Licks tab and "Learn tunes" opens the Tunes tab, each showing its own checklist with a "Done" button back to the Routine.
+- *Routine* (landing page): your daily practice checklist. "Learn licks" opens the Licks tab and "Learn tunes" opens the Play tab (formerly Tunes), which shows that section's checklist with a "Done" button back to the Routine. The Licks tab has no checklist; use the Routine page.
 - *Licks* (was Today): reviews that are due, then new licks (2 a day by default, favorites first).
 - *Practice*: the lick in each key, in your key order. Play runs a count-in, the lick, then
   the same bars with only the band so you play it back; it moves to the next key after N
@@ -60,11 +60,11 @@ solo" and type bar ranges like `17-20, 33-36`.
   tags, or download the 12-key sheet.
 - *Import*: lick sheets and solos (MusicXML), and iReal playlists (Share › HTML, or paste the
   `irealb://` link).
-- *Tunes*: the chart with its ii–V–I's and turnarounds marked. "Fit my licks" places licks
+- *Play* (formerly Tunes): the chart with its ii–V–I's and turnarounds marked. "Fit my licks" places licks
   where their chords match beat for beat, transposed and in range. Click any bar to choose
   another lick, play it with the band, and save a practice MusicXML with labels like
   "Chet Baker Tenderly (F)".
-- *Learn* (learn by ear): pick a song you transcribed and a stretch of bars (click a bar, then another). The stretch loops as the recording or as MIDI, from 40% to 100% speed without changing pitch, and an optional silent "your turn" (with a soft click) follows. It has none of the transcribing tools; the bar lines come from the Transcribe tab.
+- *Learn* (learn by ear): the Transcribe tab's bar cards for a song you transcribed (tick any run of adjacent bars, chorus and bar number, A ▶ / M ▶, score with chords, note editing with all its keys, same colours, Space = start/stop), with a loop controller on top: the ticked bars play as the recording or as MIDI, 40–100% speed without changing pitch, then an optional silent "your turn" with a soft click. No transcription model, chord import, tempo/key/bars, transcribe-again or waveform.
 - *Progress*: licks known / learning / lapsed, practice per day, upcoming reviews and the keys you
   marked hard.
 - *Settings*: B♭ or concert display, written range (default F♯3–C6), key order (default

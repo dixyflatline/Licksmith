@@ -157,7 +157,7 @@ A **work** is a folder `library/works/<slug>/` holding one recording and everyth
 
 Single page. Header: brand "Lick**4**MyHorn" (the 4 in the accent colour), back/forward arrow buttons (own history stack), tabs, spacer, **Concert pitch** checkbox.
 
-Tabs, in order: **Routine, Learn, Licks, Tunes, Progress, Library, Import, Transcribe, Settings**. Routine is the landing page. Hash routing (`#routine`, `#licks`, `#library`, `#transcribe`, …); the old `#today` hash opens Licks. The Routine sections "Learn licks" and "Learn tunes" have an "Open Licks/Tunes" button; the Licks and Tunes tabs show that section's checklist above the page, with a "Done — back to Routine" button. Opening a lick or a tune pushes a history entry so the back arrow returns to the previous view.
+Tabs, in order: **Routine, Learn, Licks, Play, Progress, Library, Import, Transcribe, Settings**. Routine is the landing page. Hash routing (`#routine`, `#licks`, `#library`, `#transcribe`, …); the old `#today` hash opens Licks. The Routine sections "Learn licks" and "Learn tunes" have an "Open Licks/Tunes" button; the Play tab (hash `#tunes`; formerly Tunes) shows the Learn-tunes checklist above the page, with a "Done — back to Routine" button. The Licks tab has no checklist. Opening a lick or a tune pushes a history entry so the back arrow returns to the previous view.
 
 Visual style: dark theme, brass/gold accent (`#d9a441`-like), red `--again` for errors, panels with 1px lines and 8px radius, monospace for chord text. Layout is responsive: 4-column bar grid collapses to 2 columns below 900 px.
 
@@ -169,7 +169,9 @@ A generic `api(path, opts)` helper: JSON in/out; non-2xx responses throw an Erro
 
 ### 5.1 Learn tab (learn by ear)
 
-`static/ear.js`, `VIEWS.learn`, second tab after Routine. A song menu (works with audio), a strip of all bars (click one to start a stretch, another to end it, either order; or type "from bar / to bar"), and a transport: Play (space), Sound (recording or MIDI), Speed 40-100% (`audio.playbackRate` with pitch preserved; MIDI note times are scaled), Listen 1-4 times, then an optional **Your turn** (silence of the same length, with soft clicks on the beats when Click is on) and an optional one-bar count-in. It loops until stopped; changing the bars or any option takes effect at the next round. The bar playing is outlined yellow, the chosen stretch is red. Uses only the bar lines (`times`) and notes already saved by the Transcribe tab; it has no transcription, chord, tempo or waveform controls. Setup is remembered in the browser (`earSetup`).
+`static/ear.js` (`VIEWS.learn`, second tab after Routine) is a loop controller around the real Transcribe cards: it calls `alignOpen(work, works, {learn: ctl})` in `static/align.js`. In that mode align.js renders the same bar cards (checkbox pick of any number of adjacent bars, Chorus #/Bar #, A ▶ / M ▶ per card, score with chords, note selection/editing with every shortcut, undo/redo, locked bars, same colours: picked = red, playing bar = yellow) and hides everything marked `.al-tl-only`: transcription model select, import chords, tempo/key/bars, transcribe again, waveform timeline, export, zoom/snap/nudge. The song menu stays. Space and the card buttons are routed to the controller (`ctl.toggle`, `ctl.playSpan`).
+
+Controller: Sound (recording or MIDI), Speed 40-100% (`audio.playbackRate`, pitch preserved; MIDI note times scaled by `A.rate`), Listen 1-4 times, optional **Your turn** (silence the length of the bars, soft clicks when Click is on) and optional one-bar count-in. It loops until stopped; changing bars or options takes effect on the next round. Pressing A ▶ / M ▶ on a card loops that card's span. The ticked bars, song and options are remembered in the browser (`earSetup`).
 
 ## 6. Licks page (formerly Today)
 

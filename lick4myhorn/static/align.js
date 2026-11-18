@@ -3,52 +3,58 @@
 "use strict";
 
 /* The aligner is opened by the Transcribe page (transcribe.js) into #trWork. */
-async function alignOpen(work, usable) {
+// opts.learn (the Learn tab) shows only the bar cards and hands playback to the loop controller in ear.js:
+// no timeline, tempo/key/bars, chords or transcription controls.
+async function alignOpen(work, usable, opts = {}) {
+  const LEARN = opts.learn || null;
   if (window.__alCleanup) window.__alCleanup();
   try { localStorage.setItem("alignWork", work); } catch (e) { /* storage blocked */ }
-  const [D, peaks] = await Promise.all([api(`/api/align/${work}`), api(`/api/align/${work}/peaks`)]);
-  const A = { work, D, peaks, times: D.times.slice(), compact: true, pps: 60, scroll: 0, sel: null, playing: false, dirty: false, svg: new Map() };
+  const [D, peaks] = await Promise.all([api(`/api/align/${work}`),
+    LEARN ? null : api(`/api/align/${work}/peaks`)]);
+  const A = { work, D, peaks: peaks || { duration: D.times[D.times.length - 1] + 1, per_sec: 1, max: [], min: [] }, times: D.times.slice(), compact: true, pps: 60, scroll: 0, sel: null, playing: false, dirty: false, svg: new Map() };
   const audio = new Audio(`/api/align/${work}/audio`);
   audio.preload = "auto";
   A.audio = audio;
-  const dur = () => peaks.duration;
+  const dur = () => A.peaks.duration;
 
-  ($("#trWork") || main()).innerHTML = `
+  ($("#trWork") || main()).innerHTML = `<div class="${LEARN ? "al-learn" : ""}">
     <h2 style="margin-top:22px">${esc(D.title)}${D.artist ? ` <span class="muted" style="font-weight:400">— ${esc(D.artist)}</span>` : ""}</h2>
-    <p class="sub">Drag each bar line onto the bass downbeat (Shift-drag moves every later line too). Notes are re-quantized to your bar
-      lines. A bar you edit is locked and keeps your version.</p>
+    <p class="sub">${LEARN ? "Tick the bars you want to learn (click the bar next to the ticked ones to add it). They loop, then it is your turn. A bar you edit is locked and keeps your version."
+      : `Drag each bar line onto the bass downbeat (Shift-drag moves every later line too). Notes are re-quantized to your bar
+      lines. A bar you edit is locked and keeps your version.`}</p>
     <div class="card al-sticky" id="alSticky" style="padding:12px">
       <div class="row" style="margin-bottom:10px">
         <select id="alWork">${usable.map(w => `<option value="${esc(w.work)}" ${w.work === work ? "selected" : ""}>${esc(w.artist ? w.title + " — " + w.artist : w.title || w.work)}</option>`).join("")}</select>
-        <label class="small muted">Transcription <select id="alEngine">${D.engines.map(e => `<option ${e === D.engine ? "selected" : ""}>${esc(e)}</option>`).join("")}</select></label>
-        <span class="al-btns"><button class="primary" id="alPlay" title="Play the real recording">A ▶</button><button id="alMidi" title="Play the transcribed notes (with your edits) as MIDI, on the same cursor">M ▶</button></span>
-        <span id="alTime" class="small muted" style="min-width:120px;font-variant-numeric:tabular-nums"></span>
-        <button id="alZoomOut" title="Zoom out">−</button><button id="alZoomIn" title="Zoom in">+</button>
-        <button id="alSnap" title="Slide each bar line (up to 0.25 s) to where the bass beats around it fit best. Run it twice if the grid has drifted a lot.">Snap lines to bass</button>
-        <span class="al-btns" title="Move every bar line together, earlier or later, by the step in the box (Alt ← → does the same; add Shift for 5 steps)"><button id="alNudgeL">◀</button><select id="alNudgeStep" title="How far each press moves all the bar lines">
+        <label class="small muted al-tl-only">Transcription <select id="alEngine">${D.engines.map(e => `<option ${e === D.engine ? "selected" : ""}>${esc(e)}</option>`).join("")}</select></label>
+        <span class="al-btns al-tl-only"><button class="primary" id="alPlay" title="Play the real recording">A ▶</button><button id="alMidi" title="Play the transcribed notes (with your edits) as MIDI, on the same cursor">M ▶</button></span>
+        <span id="alTime" class="small muted al-tl-only" style="min-width:120px;font-variant-numeric:tabular-nums"></span>
+        <button class="al-tl-only" id="alZoomOut" title="Zoom out">−</button><button class="al-tl-only" id="alZoomIn" title="Zoom in">+</button>
+        <button class="al-tl-only" id="alSnap" title="Slide each bar line (up to 0.25 s) to where the bass beats around it fit best. Run it twice if the grid has drifted a lot.">Snap lines to bass</button>
+        <span class="al-btns al-tl-only" title="Move every bar line together, earlier or later, by the step in the box (Alt ← → does the same; add Shift for 5 steps)"><button id="alNudgeL">◀</button><select id="alNudgeStep" title="How far each press moves all the bar lines">
           <option value="10">10 ms</option><option value="25" selected>25 ms</option><option value="50">50 ms</option><option value="100">100 ms</option>
           <option value="q">¼ beat</option><option value="beat">1 beat</option></select><button id="alNudgeR">▶</button></span>
-        <button id="alSetBeat1" title="First drag a bar line onto beat 1. Then press this: every bar line after it moves by the same amount, and the ones before it stay where they are.">Set beat one</button>
+        <button class="al-tl-only" id="alSetBeat1" title="First drag a bar line onto beat 1. Then press this: every bar line after it moves by the same amount, and the ones before it stay where they are.">Set beat one</button>
         <button id="alUndo" title="Undo (⌘Z)">↶</button><button id="alRedo" title="Redo (⇧⌘Z)">↷</button>
-        <button id="alExport">Export MusicXML</button>
-        <button id="alCompact" title="Switch the floating timeline between compact and full height">Full size</button>
+        <button class="al-tl-only" id="alExport">Export MusicXML</button>
+        <button class="al-tl-only" id="alCompact" title="Switch the floating timeline between compact and full height">Full size</button>
         <span id="alMsg" class="small muted"></span>
       </div>
-      <div id="alTl" class="al-tl"><div id="alSpacer"></div><canvas id="alCanvas"></canvas></div>
-      <div class="small muted" style="margin-top:6px">
+      <div id="alLearn"></div>
+      <div id="alTl" class="al-tl al-tl-only"><div id="alSpacer"></div><canvas id="alCanvas"></canvas></div>
+      <div class="small muted al-tl-only" style="margin-top:6px">
         <span style="color:#d9a441">■</span> horn notes &nbsp; <span style="color:#5a9bd0">■</span> bass notes &nbsp;
         Click a note on the timeline to hear it · click elsewhere to seek · Space = play/stop · Ctrl/⌘-scroll = zoom ·
         drag a bar line onto beat 1, then "Set beat one" moves every later line with it (Shift-drag does it while dragging) · ◀ ▶ or Alt ← → move all the lines</div>
-      <div id="alPick" class="al-pick-row"></div>
+      <div id="alPick" class="al-pick-row al-tl-only"></div>
     </div>
     <h2>Bars</h2>
     <div class="small muted" style="margin-bottom:8px">Click a note to select it and hear it. Drag it up or down (Shift = semitones), or use the keys:
       <b>↑ ↓</b> semitone · <b>⌘↑ ⌘↓</b> octave · <b>Alt ↑↓</b> scale step · <b>A–G</b> note name · <b>1 2 4 8 6</b> whole / half / quarter / eighth / sixteenth ·
       <b>.</b> dotted · <b>/</b> grace note before the note (again = remove; <b>?</b> = unslashed) · <b>⌘3</b> make the selected note's beat a triplet, whatever is in it (again = straight) · <b>T</b> tie the note to the next one of the same pitch (again = remove) · <b>Delete</b> rest · <b>← →</b> next note or rest · <b>⌘Z</b> undo (⇧⌘Z redo). Select a rest and type <b>A–G</b> to turn it into a note.
       Or edit the ABC text. Any edit locks the bar.</div>
-    <details id="alChords" class="card al-pick-panel"><summary><b>Chords from iReal Pro</b> <span class="small muted" id="alChordsSub"></span></summary>
+    <details id="alChords" class="card al-pick-panel al-tl-only"><summary><b>Chords from iReal Pro</b> <span class="small muted" id="alChordsSub"></span></summary>
       <div id="alChordsBody" class="small" style="margin-top:8px"></div></details>
-    <details id="alGrid" class="card al-pick-panel"><summary><b>Tempo, key &amp; bars</b> <span class="small muted" id="alGridSub"></span></summary>
+    <details id="alGrid" class="card al-pick-panel al-tl-only"><summary><b>Tempo, key &amp; bars</b> <span class="small muted" id="alGridSub"></span></summary>
       <div class="row" style="margin-top:8px">
         <label class="small">Tempo <input id="gBpm" type="number" step="0.1" min="30" max="400" style="width:80px"> BPM</label>
         <label class="small">Beats per bar <select id="gBpb">${[2, 3, 4, 5, 6, 7].map(n => `<option>${n}</option>`).join("")}</select></label>
@@ -59,9 +65,9 @@ async function alignOpen(work, usable) {
         <button id="gApply" class="primary">Apply</button><span id="gMsg" class="small muted"></span></div>
       <div class="small muted" style="margin-top:6px">Applying puts every bar line back on an even grid at this tempo, starting at the first downbeat,
         and clears the bars you edited. Do this first, then drag the lines onto the bass downbeats. The key only decides how notes are spelled.</div></details>
-    <details id="alAgain" class="card al-pick-panel"><summary><b>Transcribe again</b> <span class="small muted">with another model or band</span></summary>
+    <details id="alAgain" class="card al-pick-panel al-tl-only"><summary><b>Transcribe again</b> <span class="small muted">with another model or band</span></summary>
       <div id="alAgainBody" class="small" style="margin-top:8px"></div></details>
-    <div id="alBars" class="al-bars"></div>`;
+    <div id="alBars" class="al-bars"></div></div>`;
 
   const tl = $("#alTl"), cv = $("#alCanvas"), ctx = cv.getContext("2d");
   // The toolbar + timeline card floats at the top while you scroll the bars; "Compact" shrinks it further.
@@ -119,6 +125,7 @@ async function alignOpen(work, usable) {
   }
 
   function draw() {
+    if (LEARN) return;  // no timeline in the Learn tab
     const W = cv.clientWidth;
     ctx.clearRect(0, 0, W, HT);
     ctx.fillStyle = "#14161b"; ctx.fillRect(0, 0, W, HT);
@@ -290,7 +297,7 @@ async function alignOpen(work, usable) {
   // ------------------------------------------------------------------ playback
   const curBar = t => { const T = A.times; if (t < T[0] || t >= T[T.length - 1]) return -1; let i = 0; while (i < T.length - 2 && t >= T[i + 1]) i++; return i; };
   function tickUi() {
-    if (A.stopAt != null && audio.currentTime >= A.stopAt) { A.stopAt = null; if (A.playing) stopAll(); }
+    if (A.stopAt != null && audio.currentTime >= A.stopAt) { A.stopAt = null; if (A.playing) { stopAll(); if (A.onEnd) A.onEnd(); } }
     const c = curBar(audio.currentTime);
     if (c !== A.cur) { const prev = A.cur; A.cur = c; markBar(prev); }
     markNote();
@@ -329,15 +336,15 @@ async function alignOpen(work, usable) {
     const pump = () => {
       if (!sched) return;
       const now = audio.currentTime;
-      if (now < sched.last - 0.05 || now > sched.last + 1.5) {  // you sought: drop what was scheduled
+      if (now < sched.last - 0.05 || now > sched.last + 1.5 * (A.rate || 1)) {  // you sought: drop what was scheduled
         const e = Band.engine; const g = e.cur.bus.gain; g.setValueAtTime(g.value, e.ctx.currentTime); g.linearRampToValueAtTime(0, e.ctx.currentTime + 0.03);
         e.session(); sched.upto = now;
       }
       sched.last = now;
-      const horizon = now + 1.5, ctxNow = Band.engine.ctx.currentTime;
+      const rate = A.rate || 1, horizon = now + 1.5 * rate, ctxNow = Band.engine.ctx.currentTime;
       for (const n of sched.notes) {
         if (n.t < sched.upto || n.t >= horizon) continue;
-        Band.engine.lead(ctxNow + Math.max(0, n.t - now), n.d, n.m);
+        Band.engine.lead(ctxNow + Math.max(0, n.t - now) / rate, n.d / rate, n.m);
       }
       sched.upto = horizon;
     };
@@ -360,10 +367,11 @@ async function alignOpen(work, usable) {
     if (was) stopAll();
     if (was && prev === mode) return;
     A.mode = mode; audio.muted = mode === "midi";
+    audio.playbackRate = A.rate || 1; audio.preservesPitch = true;  // the Learn tab slows the recording without changing its pitch
     const from = audio.currentTime;
     audio.play().then(() => { A.playing = true; if (mode === "midi") midiStart(from); setButtons(); loop(); }).catch(e => msg(e.message, true));
   }
-  audio.addEventListener("ended", () => { midiStop(); A.playing = false; setButtons(); });
+  audio.addEventListener("ended", () => { midiStop(); A.playing = false; setButtons(); if (A.onEnd) A.onEnd(); });
   $("#alPlay").onclick = () => toggle("audio");
   $("#alMidi").onclick = () => toggle("midi");
 
@@ -411,9 +419,9 @@ async function alignOpen(work, usable) {
     const el = $(`#alBars .al-bar[data-n="${bar}"]`); if (el) el.scrollIntoView({ block: "nearest" });
   };
   A.key = e => {
-    if (S.tab !== "transcribe" || /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+    if (S.tab !== (LEARN ? "learn" : "transcribe") || /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
     const cmd = e.metaKey || e.ctrlKey, k = e.key;
-    if (e.code === "Space") { e.preventDefault(); toggle(A.mode || "audio"); return; }
+    if (e.code === "Space") { e.preventDefault(); if (LEARN) LEARN.toggle(); else toggle(A.mode || "audio"); return; }
     if (e.altKey && (k === "ArrowLeft" || k === "ArrowRight")) { e.preventDefault(); nudgeAll((k === "ArrowLeft" ? -1 : 1) * nudgeStep() * (e.shiftKey ? 5 : 1)); return; }
     if (k === "ArrowLeft" || k === "ArrowRight") { e.preventDefault(); moveSel(k === "ArrowLeft" ? -1 : 1); return; }
     if (k === "Escape") { A.sel = null; paintSel(); return; }
@@ -460,7 +468,7 @@ async function alignOpen(work, usable) {
   }
   function barHtml(b) {
     const bad = (b.issues || []).length ? `<div class="al-issue">${esc(b.issues.map(i => i.msg).join("; "))}</div>` : "";
-    return `<div class="al-bar-head" title="Tick this bar for the lick. Click the bar next to it to add it (up to 3 in a row), click an end bar again to remove it"><b class="al-pick">${b.n}</b><span class="muted small">${b.chorus ? `ch ${b.chorus} · bar ${A.D.chart_offset ? (b.bar_in_chorus - 1 + A.D.chart_offset) % A.D.chart_len + 1 : b.bar_in_chorus}` : ""}</span>
+    return `<div class="al-bar-head" title="${LEARN ? "Tick this bar to learn it. Click the bar next to it to add it, click an end bar again to remove it" : "Tick this bar for the lick. Click the bar next to it to add it (up to 3 in a row), click an end bar again to remove it"}"><b class="al-pick">${b.n}</b><span class="muted small">${b.chorus ? `ch ${b.chorus} · bar ${A.D.chart_offset ? (b.bar_in_chorus - 1 + A.D.chart_offset) % A.D.chart_len + 1 : b.bar_in_chorus}` : ""}</span>
         <span class="spacer"></span>
         <span class="al-btns"><button class="al-ga" title="Play this bar (or the whole picked lick): the recording">A ▶</button><button class="al-gm" title="Play this bar (or the whole picked lick): your notes as MIDI">M ▶</button></span>
         ${b.locked ? `<span class="chip user">locked</span><button class="ghost al-unlock" title="Go back to the automatic transcription">auto</button>` : ""}</div>
@@ -510,8 +518,8 @@ async function alignOpen(work, usable) {
     wireNotes(b, holder);
     // inside a joined selection (2-3 bars picked for a lick) these play the whole lick, otherwise just this bar
     const span = () => (A.pick && A.pick.b > A.pick.a && b.n >= A.pick.a && b.n <= A.pick.b) ? A.pick : { a: b.n, b: b.n };
-    $(".al-ga", el).onclick = () => { const r = span(); playRange(r.a, r.b, "audio"); };
-    $(".al-gm", el).onclick = () => { const r = span(); playRange(r.a, r.b, "midi"); };
+    $(".al-ga", el).onclick = () => { const r = span(); if (LEARN) LEARN.playSpan(r, "rec"); else playRange(r.a, r.b, "audio"); };
+    $(".al-gm", el).onclick = () => { const r = span(); if (LEARN) LEARN.playSpan(r, "midi"); else playRange(r.a, r.b, "midi"); };
     const u = $(".al-unlock", el);
     if (u) u.onclick = async () => { await api(`/api/align/${work}/bar/${b.n}/unlock`, { method: "POST", body: {} }); await reload(); };
     const inp = $(".al-abc", el);
@@ -712,7 +720,7 @@ async function alignOpen(work, usable) {
     $("#alChartGo", box).onclick = lookup;
     if (info.exact && !info.source) lookup();  // a chart with this title exists and none is in use yet: show the best guess right away
   }
-  if ($("#alChords")) loadChords();
+  if (!LEARN && $("#alChords")) loadChords();
 
   // ---- tempo, key and bar count
   const gridFill = () => {
@@ -747,7 +755,7 @@ async function alignOpen(work, usable) {
   // Plain clicks toggle bars into the lick (checkbox style): 1-3 bars in a row. Clicking the bar next to the picked ones adds
   // it, clicking an end bar takes it out again, anything else starts over with that bar. Shift-click still adds a whole range.
   function pick(n, extend) {
-    const p = A.pick, MAX = 3;
+    const p = A.pick, MAX = LEARN ? Infinity : 3;
     if (!p) A.pick = { a: n, b: n };
     else if (extend) { const a = Math.min(p.a, n), b = Math.max(p.b, n); A.pick = b - a < MAX ? { a, b } : { a: n, b: n }; }
     else if (n >= p.a && n <= p.b) {
@@ -760,6 +768,7 @@ async function alignOpen(work, usable) {
     else if (n === p.b + 1 && n - p.a < MAX) A.pick = { a: p.a, b: n };
     else { A.pick = { a: n, b: n }; toast(p.b - p.a + 1 >= MAX && (n === p.a - 1 || n === p.b + 1) ? `A lick is at most ${MAX} bars: started a new pick at bar ${n}` : `Started a new pick at bar ${n}`, 1800); }
     paintPick(); draw();
+    if (LEARN) LEARN.onPick(A.pick);
   }
   const fitTop = () => document.documentElement.style.setProperty("--al-top", ($("#alSticky").offsetHeight + (parseInt(getComputedStyle(document.documentElement).getPropertyValue("--hdr-h")) || 56) + 14) + "px");
   function paintPick() {
@@ -819,7 +828,7 @@ async function alignOpen(work, usable) {
   async function reload() { A.D = await api(`/api/align/${work}`); A.times = A.D.times.slice(); renderBars(); draw(); }
 
   // ------------------------------------------------------------------ toolbar
-  $("#alWork").onchange = e => alignOpen(e.target.value, usable);
+  $("#alWork").onchange = e => alignOpen(e.target.value, usable, opts);
   $("#alEngine").onchange = async e => {
     msg("Loading…"); A.D = await api(`/api/align/${work}/engine`, { method: "PUT", body: { engine: e.target.value } });
     A.times = A.D.times.slice(); renderBars(); msg(""); draw();
@@ -839,8 +848,10 @@ async function alignOpen(work, usable) {
   };
   $("#alExport").onclick = () => { location.href = `/api/align/${work}/musicxml`; };
 
-  window.__alCleanup = () => { audio.pause(); midiStop(); cancelAnimationFrame(A.raf); document.removeEventListener("keydown", A.key); window.removeEventListener("resize", resize); window.removeEventListener("resize", padBars); };
+  window.__alCleanup = () => { if (LEARN && LEARN.cleanup) LEARN.cleanup(); audio.pause(); midiStop(); cancelAnimationFrame(A.raf); document.removeEventListener("keydown", A.key); window.removeEventListener("resize", resize); window.removeEventListener("resize", padBars); };
   window.addEventListener("resize", resize);
   window.addEventListener("resize", padBars);
+  Object.assign(A, { stopAll, playRange, markBar, paintPick, liveBus, midiNotes, showBar: i => { const prev = A.cur; if (i !== A.cur) { A.cur = i; markBar(prev); } } });
+  if (LEARN) LEARN.attach(A);
   renderBars(); paintPick(); resize();
 }
