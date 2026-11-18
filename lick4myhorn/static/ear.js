@@ -40,24 +40,24 @@ VIEWS.learn = async () => {
       if (token !== my || (!A.playing && Date.now() - t0 > 2500)) fin();
     }, 100);
   });
-  // One steady tempo for clicks, count-in and the turn, whatever the bar lines do: the tempo slider.
+  // One steady tempo for the count-in, the clicks and the turn, whatever the bar lines do: the tempo slider.
+  // Everything is scheduled in one go on the audio clock (count-in beats first, then the turn's beats), so there is no gap
+  // between the last count-in click and the first click of the turn; the timers below only follow the clock for the display.
   async function turn(a, b, my) {
-    const e = Band.engine, bpb = A.D.bpb, spb = 60 / curBpm(), n = (b - a + 1) * bpb;
+    const e = Band.engine, bpb = A.D.bpb, spb = 60 / curBpm(), n = (b - a + 1) * bpb, ci = pref.countin ? bpb : 0;
     A.liveBus();
-    const now = e.ctx.currentTime + 0.08;
-    if (pref.click) for (let k = 0; k < n; k++) e.click(now + k * spb, k % bpb === 0);
-    const start = performance.now(), ms = n * spb * 1000;
-    while (token === my && performance.now() - start < ms) {
-      A.showBar(a - 1 + Math.min(b - a, Math.floor((performance.now() - start) / 1000 / spb / bpb)));
-      await sleep(30, my);
-    }
-  }
-  async function countIn(my) {
-    const e = Band.engine, bpb = A.D.bpb, spb = 60 / curBpm();
-    A.liveBus();
-    const now = e.ctx.currentTime + 0.08;
-    for (let j = 0; j < bpb; j++) e.click(now + j * spb, j === 0);
-    await sleep(bpb * spb * 1000 + 80, my);
+    const t0 = e.ctx.currentTime + 0.03;
+    const label = a === b ? `bar ${a}` : `bars ${a}–${b}`;
+    if (ci) for (let k = 0; k < ci; k++) e.click(t0 + k * spb, k === 0);
+    if (pref.click) for (let k = 0; k < n; k++) e.click(t0 + (ci + k) * spb, k % bpb === 0);
+    const wait = async (until, onTick) => {
+      while (token === my && e.ctx.currentTime < until) { if (onTick) onTick(e.ctx.currentTime); await sleep(20, my); }
+    };
+    if (ci) { setPhase(`Count-in · ${label}`); await wait(t0 + ci * spb); }
+    if (token !== my) return;
+    setPhase(`Your turn · ${label}`);
+    const turnStart = t0 + ci * spb;
+    await wait(turnStart + n * spb, t => A.showBar(a - 1 + Math.min(b - a, Math.max(0, Math.floor((t - turnStart) / spb / bpb)))));
   }
 
   // span: {a, b} to loop that one stretch, or null to follow the ticked bars; mode: "rec" or "midi"
@@ -83,10 +83,7 @@ VIEWS.learn = async () => {
           await segment(r.a, r.b, mode, my);
         }
         if (token !== my) break;
-        if (pref.turn) {
-          if (pref.countin) { setPhase(`Count-in · ${label}`); await countIn(my); if (token !== my) break; }
-          setPhase(`Your turn · ${label}`); await turn(r.a, r.b, my);
-        }
+        if (pref.turn) await turn(r.a, r.b, my);
       }
     } catch (err) { toast(err.message); }
     if (token === my) stop();

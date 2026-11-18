@@ -472,7 +472,7 @@ async function alignOpen(work, usable, opts = {}) {
     return `<div class="al-bar-head" title="${LEARN ? "Tick this bar to learn it. Click the bar next to it to add it, click an end bar again to remove it" : "Tick this bar for the lick. Click the bar next to it to add it (up to 3 in a row), click an end bar again to remove it"}"><b class="al-pick">${b.n}</b><span class="muted small">${b.chorus ? `ch ${b.chorus} · bar ${A.D.chart_offset ? (b.bar_in_chorus - 1 + A.D.chart_offset) % A.D.chart_len + 1 : b.bar_in_chorus}` : ""}</span>
         <span class="spacer"></span>
         <span class="al-btns"><button class="al-ga" title="Play this bar (or the whole picked lick): the recording">A ▶</button><button class="al-gm" title="Play this bar (or the whole picked lick): your notes as MIDI">M ▶</button></span>
-        ${b.locked ? `<span class="chip user">locked</span><button class="ghost al-unlock" title="Go back to the automatic transcription">auto</button>` : ""}</div>
+        ${b.locked ? `<span class="al-lockwrap"><svg class="al-lock" viewBox="0 0 24 24" width="15" height="15" role="img" aria-label="Locked: you edited this bar, so it keeps your version"><title>Locked: you edited this bar, so it keeps your version</title><path fill="#f2ba2b" d="M12 1a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V11a2 2 0 0 0-2-2h-1V6a5 5 0 0 0-5-5zm-3 8V6a3 3 0 1 1 6 0v3H9z"/></svg></span><button class="ghost al-unlock" title="Go back to the automatic transcription">auto</button>` : ""}</div>
       <div class="paper al-svg"></div>
       <input class="al-abc" spellcheck="false" value="${esc(b.abc)}">${bad}`;
   }

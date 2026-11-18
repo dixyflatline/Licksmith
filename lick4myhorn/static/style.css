@@ -409,3 +409,5 @@ img, svg, canvas { max-width: 100%; }
 .ea-gold { color: var(--brass); border-color: var(--brass-dim); }
 .ea-gold:hover:not(:disabled) { border-color: var(--brass); background: rgba(242, 186, 43, .12); }
 .ea-gold:disabled { opacity: .45; }
+.al-lockwrap { display: inline-flex; align-items: center; vertical-align: middle; }
+.al-unlock { padding: 1px 6px; font-size: 12px; }
