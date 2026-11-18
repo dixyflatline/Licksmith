@@ -467,13 +467,16 @@ async function alignOpen(work, usable, opts = {}) {
     }
     return A.svg.get(key);
   }
+  // recording = a smooth sound wave; MIDI = a square wave
+  const ICON_WAVE = `<svg viewBox="0 0 28 16" width="26" height="15" aria-hidden="true"><path d="M1 8h3l2-5 3 10 3-12 3 14 3-10 2 3h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const ICON_SQUARE = `<svg viewBox="0 0 28 16" width="26" height="15" aria-hidden="true"><path d="M1 12h4V4h6v8h6V4h6v8h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" stroke-linejoin="miter"/></svg>`;
   const ICON_HUMAN = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="7.5" r="4" fill="currentColor"/><path d="M4 21c0-4.4 3.6-7.5 8-7.5s8 3.1 8 7.5z" fill="currentColor"/></svg>`;
   const ICON_COMPUTER = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 20h8M12 16v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
   function barHtml(b) {
     const bad = (b.issues || []).length ? `<div class="al-issue">${esc(b.issues.map(i => i.msg).join("; "))}</div>` : "";
-    return `<div class="al-bar-head" title="${LEARN ? "Tick this bar to learn it. Click the bar next to it to add it, click an end bar again to remove it" : "Tick this bar for the lick. Click the bar next to it to add it (up to 3 in a row), click an end bar again to remove it"}"><b class="al-pick">${b.n}</b><span class="muted small">${b.chorus ? `ch ${b.chorus} · bar ${A.D.chart_offset ? (b.bar_in_chorus - 1 + A.D.chart_offset) % A.D.chart_len + 1 : b.bar_in_chorus}` : ""}</span>
+    return `<div class="al-bar-head" title="${LEARN ? "Tick this bar to learn it. Click the bar next to it to add it, click an end bar again to remove it" : "Tick this bar for the lick. Click the bar next to it to add it (up to 3 in a row), click an end bar again to remove it"}"><b class="al-pick">${b.n}</b><span class="muted small">${b.chorus ? `Chorus ${b.chorus} · Bar ${A.D.chart_offset ? (b.bar_in_chorus - 1 + A.D.chart_offset) % A.D.chart_len + 1 : b.bar_in_chorus}` : ""}</span>
         <span class="spacer"></span>
-        <span class="al-btns"><button class="al-ga" title="Play this bar (or the whole picked lick): the recording">A ▶</button><button class="al-gm" title="Play this bar (or the whole picked lick): your notes as MIDI">M ▶</button></span>
+        <span class="al-btns"><button class="al-ga al-ic" aria-label="Play the recording" title="Play this bar (or the whole picked lick): the recording">${ICON_WAVE}</button><button class="al-gm al-ic" aria-label="Play as MIDI" title="Play this bar (or the whole picked lick): your notes as MIDI">${ICON_SQUARE}</button></span>
         <span class="al-sw ${b.locked ? "human" : "computer"}" role="group" aria-label="Who wrote this bar">
           <button class="al-sw-h" ${b.locked ? "" : "disabled"} aria-pressed="${!!b.locked}" title="${b.locked ? "Human: you edited this bar, so it keeps your version" : "Computer's transcription. Edit a note and this bar flips to Human."}">${ICON_HUMAN}</button>
           <button class="al-sw-c" ${b.locked ? "" : "disabled"} aria-pressed="${!b.locked}" title="${b.locked ? "Flip back to Computer: clears your edits to this bar (Undo brings them back)" : "Computer: this bar is the automatic transcription"}">${ICON_COMPUTER}</button>
@@ -790,7 +793,7 @@ async function alignOpen(work, usable, opts = {}) {
     }
     box.innerHTML = `<div class="row"><b>${len > 1 ? `Bars ${p.a}–${p.b}` : `Bar ${p.a}`}</b>
       <span class="small muted">${(A.times[p.b] - A.times[p.a - 1]).toFixed(1)} s</span>
-      <span class="al-btns"><button id="alPickA" title="Play these bars: the recording">A ▶</button><button id="alPickM" title="Play these bars: your notes as MIDI">M ▶</button></span>
+      <span class="al-btns"><button id="alPickA" class="al-ic" aria-label="Play the recording" title="Play these bars: the recording">${ICON_WAVE}</button><button id="alPickM" class="al-ic" aria-label="Play as MIDI" title="Play these bars: your notes as MIDI">${ICON_SQUARE}</button></span>
       <input id="alArtist" placeholder="Musician" title="Musician (filled in from the recording; change it if you like)" style="width:150px">
       <input id="alTune" placeholder="Song name" title="Song name (filled in from the recording; change it if you like)" style="width:170px">
       <input id="alTags" placeholder="tags, e.g. Blues, Minor II V" style="min-width:220px">

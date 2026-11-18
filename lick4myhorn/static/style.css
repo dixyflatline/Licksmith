@@ -416,3 +416,4 @@ img, svg, canvas { max-width: 100%; }
 .al-sw.human { border-color: var(--brass-dim); }
 .al-sw.human .al-sw-h, .al-sw.computer .al-sw-c { background: var(--brass); color: #1a1a1a; }
 .al-sw.human .al-sw-c:hover { background: rgba(242, 186, 43, .2); color: var(--brass); }
+.al-btns button.al-ic { display: inline-flex; align-items: center; padding: 3px 8px; }
