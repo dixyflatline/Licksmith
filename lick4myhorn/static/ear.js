@@ -33,7 +33,12 @@ VIEWS.learn = async () => {
   const segment = (a, b, mode, my) => new Promise(res => {
     const t0 = Date.now();
     let done = false, id = null;
-    const fin = () => { if (!done) { done = true; clearInterval(id); A.onEnd = null; res(); } };
+    const fin = () => {
+      if (done) return;
+      done = true; clearInterval(id); A.onEnd = null;
+      if (token === my) { A.audio.currentTime = A.times[a - 1]; A.showBar(a - 1); }   // back to the first bar, never on to the next
+      res();
+    };
     A.onEnd = fin;
     A.playRange(a, b, mode === "midi" ? "midi" : "audio");
     id = setInterval(() => {   // stopped from outside, or the player never started
