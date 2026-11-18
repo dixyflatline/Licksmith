@@ -673,7 +673,7 @@ async function alignOpen(work, usable, opts = {}) {
   const ICON_COMPUTER = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 20h8M12 16v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
   function barHtml(b) {
     const bad = (b.issues || []).length ? `<div class="al-issue">${esc(b.issues.map(i => i.msg).join("; "))}</div>` : "";
-    return `<div class="al-bar-head" title="${LEARN ? "Select this bar to learn it. Click the bar next to it to add it, click an end bar again to remove it" : "Tick this bar for the lick. Click the bar next to it to add it (up to 3 in a row), click an end bar again to remove it"}"><b class="al-pick">${b.n}</b><span class="muted small">${b.chorus ? `ch ${b.chorus} - bar ${A.D.chart_offset ? (b.bar_in_chorus - 1 + A.D.chart_offset) % A.D.chart_len + 1 : b.bar_in_chorus}` : ""}</span>
+    return `<div class="al-bar-head" title="${LEARN ? "Select this bar to learn it. Click the bar next to it to add it, click an end bar again to remove it" : "Tick this bar for the lick. Click the bar next to it to add it (up to 4 in a row), click an end bar again to remove it"}"><b class="al-pick">${b.n}</b><span class="muted small">${b.chorus ? `ch ${b.chorus} - bar ${A.D.chart_offset ? (b.bar_in_chorus - 1 + A.D.chart_offset) % A.D.chart_len + 1 : b.bar_in_chorus}` : ""}</span>
         <span class="spacer"></span>
         <span class="al-btns"><button class="al-ga al-ic" aria-label="Play the recording" title="Play this bar (or the whole picked lick): the recording">${ICON_WAVE}</button><button class="al-gm al-ic" aria-label="Play as MIDI" title="Play this bar (or the whole picked lick): your notes as MIDI">${ICON_SQUARE}</button></span>
         <span class="al-sw ${b.locked ? "human" : "computer"}" role="group" aria-label="Who wrote this bar">
@@ -724,7 +724,7 @@ async function alignOpen(work, usable, opts = {}) {
     // the whole header strip is the tap target (box, number, chorus text, empty space); only its buttons do something else
     $(".al-bar-head", el).onclick = e => { if (e.target.closest("button")) return; defocus(); pick(b.n, e.shiftKey); };
     wireNotes(b, holder);
-    // inside a joined selection (2-3 bars picked for a lick) these play the whole lick, otherwise just this bar
+    // inside a joined selection (2-4 bars picked for a lick) these play the whole lick, otherwise just this bar
     const span = () => (A.pick && A.pick.b > A.pick.a && b.n >= A.pick.a && b.n <= A.pick.b) ? A.pick : { a: b.n, b: b.n };
     $(".al-ga", el).onclick = () => { const r = span(); if (LEARN) LEARN.playOnce(r, "audio"); else playRange(r.a, r.b, "audio"); };
     $(".al-gm", el).onclick = () => { const r = span(); if (LEARN) LEARN.playOnce(r, "midi"); else playRange(r.a, r.b, "midi"); };
@@ -960,10 +960,10 @@ async function alignOpen(work, usable, opts = {}) {
   window.transcribeAgainPanel && window.transcribeAgainPanel($("#alAgainBody"), work, A.D);
 
   // ---- take 1-3 adjacent bars as a lick and send it, with the recording of those bars, to the library
-  // Plain clicks toggle bars into the lick (checkbox style): 1-3 bars in a row. Clicking the bar next to the picked ones adds
+  // Plain clicks toggle bars into the lick (checkbox style): 1-4 bars in a row. Clicking the bar next to the picked ones adds
   // it, clicking an end bar takes it out again, anything else starts over with that bar. Shift-click still adds a whole range.
   function pick(n, extend) {
-    const p = A.pick, MAX = LEARN ? Infinity : 3;
+    const p = A.pick, MAX = LEARN ? Infinity : 4;
     if (!p) A.pick = { a: n, b: n };
     else if (extend) { const a = Math.min(p.a, n), b = Math.max(p.b, n); A.pick = b - a < MAX ? { a, b } : { a: n, b: n }; }
     else if (n >= p.a && n <= p.b) {
@@ -978,6 +978,13 @@ async function alignOpen(work, usable, opts = {}) {
     paintPick(); draw();
     if (LEARN) LEARN.onPick(A.pick);
   }
+  // a click on the empty space beside or between the bar cards clears the selection (Transcribe tab; Learn does the same itself)
+  const blankClear = ev => {
+    if (LEARN || !A.pick) return;
+    const t = ev.target;
+    if (t === document.body || t === document.documentElement || t === $("#main") || t === $("#alBars")) clearPick();
+  };
+  document.addEventListener("click", blankClear);
   function clearPick() { A.pick = null; paintPick(); draw(); if (LEARN) LEARN.onPick(null); }
   const fitTop = () => document.documentElement.style.setProperty("--al-top", ($("#alSticky").offsetHeight + (parseInt(getComputedStyle(document.documentElement).getPropertyValue("--hdr-h")) || 56) + 14) + "px");
   function paintPick() {
@@ -987,7 +994,7 @@ async function alignOpen(work, usable, opts = {}) {
     if (p) for (let n = p.a; n <= p.b; n++) { const el = $(`#alBars .al-bar[data-n="${n}"]`); if (el) el.classList.add("picked"); }
     const len = p ? p.b - p.a + 1 : 0;
     if (len < 1) {
-      box.innerHTML = `<span class="small muted">Make a lick: tick the bars (☐) one by one, up to 3 in a row, then Send to library.</span>`;
+      box.innerHTML = `<span class="small muted">Make a lick: tick the bars (☐) one by one, up to 4 in a row, then Send to library.</span>`;
       return;
     }
     box.innerHTML = `<div class="row"><b>${len > 1 ? `Bars ${p.a}–${p.b}` : `Bar ${p.a}`}</b>
@@ -1065,7 +1072,7 @@ async function alignOpen(work, usable, opts = {}) {
   };
   $("#alExport").onclick = () => { location.href = `/api/align/${work}/musicxml`; };
 
-  window.__alCleanup = () => { A.tap = null; window.__alDirty = false; if (LEARN && LEARN.cleanup) LEARN.cleanup(); audio.pause(); midiStop(); cancelAnimationFrame(A.raf); document.removeEventListener("keydown", A.key); window.removeEventListener("resize", resize); window.removeEventListener("resize", padBars); };
+  window.__alCleanup = () => { A.tap = null; window.__alDirty = false; if (LEARN && LEARN.cleanup) LEARN.cleanup(); audio.pause(); midiStop(); cancelAnimationFrame(A.raf); document.removeEventListener("keydown", A.key); document.removeEventListener("click", blankClear); window.removeEventListener("resize", resize); window.removeEventListener("resize", padBars); };
   window.addEventListener("resize", resize);
   window.addEventListener("resize", padBars);
   Object.assign(A, { clearPick, stopAll, playRange, markBar, paintPick, liveBus, midiNotes, showBar: i => { const prev = A.cur; if (i !== A.cur) { A.cur = i; markBar(prev); } } });

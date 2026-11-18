@@ -116,7 +116,7 @@ All paths are resolved relative to the project root so the whole folder can move
 
 ### 4.2 Lick
 
-A lick is 1–4 bars (the library accepts any short fragment; the transcribe page sends 1–3 bars). Fields (SQLite `licks` table):
+A lick is 1–4 bars (the library accepts any short fragment; the transcribe page sends 1–4 bars). Fields (SQLite `licks` table):
 
 | Column | Meaning |
 |---|---|
