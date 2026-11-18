@@ -71,7 +71,6 @@ VIEWS.learn = async () => {
       if (!first) { toast("Tick some bars first."); return; }
       A.rate = pref.speed / 100;
       Band.engine.init(); if (Band.engine.ctx.state === "suspended") await Band.engine.ctx.resume();
-      if (pref.countin) { setPhase("Count-in"); await countIn(my); }
       let round = 0;
       while (token === my && S.tab === "learn" && A === Ar) {
         const r = span || A.pick;
@@ -84,7 +83,10 @@ VIEWS.learn = async () => {
           await segment(r.a, r.b, mode, my);
         }
         if (token !== my) break;
-        if (pref.turn) { setPhase(`Your turn · ${label}`); await turn(r.a, r.b, my); }
+        if (pref.turn) {
+          if (pref.countin) { setPhase(`Count-in · ${label}`); await countIn(my); if (token !== my) break; }
+          setPhase(`Your turn · ${label}`); await turn(r.a, r.b, my);
+        }
       }
     } catch (err) { toast(err.message); }
     if (token === my) stop();
@@ -117,7 +119,7 @@ VIEWS.learn = async () => {
         <label class="check">Listen <select id="eaListens">${[1, 2, 3, 4].map(v => `<option>${v}</option>`).join("")}</select> ×</label>
         <label class="check"><input type="checkbox" id="eaTurn"> Your turn</label>
         <label class="check" title="A soft click on the beats while it is your turn"><input type="checkbox" id="eaClick"> Click</label>
-        <label class="check" title="One bar of clicks before the first loop"><input type="checkbox" id="eaCountin"> Count-in</label>
+        <label class="check" title="One bar of clicks at the tempo, right before each of your turns"><input type="checkbox" id="eaCountin"> Count-in</label>
       </div>`;
       $("#eaSource").value = pref.source; $("#eaTempo").value = Math.round(curBpm()); $("#eaListens").value = pref.listens;
       $("#eaTurn").checked = pref.turn; $("#eaClick").checked = pref.click; $("#eaCountin").checked = pref.countin;
