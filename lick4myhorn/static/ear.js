@@ -58,7 +58,14 @@ VIEWS.learn = async () => {
     const wait = async (until, onTick) => {
       while (token === my && e.ctx.currentTime < until) { if (onTick) onTick(e.ctx.currentTime); await sleep(20, my); }
     };
-    if (ci) { setPhase(`Count-in · ${label}`); await wait(t0 + ci * spb); }
+    const first = () => $(`#alBars .al-bar[data-n="${a}"]`);
+    if (ci) {
+      setPhase(`Count-in · ${label}`);
+      A.showBar(a - 1);
+      // the first bar flashes on every count-in click: lit for the first half of the beat, dark for the second
+      await wait(t0 + ci * spb, t => { const el = first(); if (el) el.classList.toggle("now", ((t - t0) / spb) % 1 < 0.5); });
+      const el = first(); if (el) el.classList.add("now");
+    }
     if (token !== my) return;
     setPhase(`Your turn · ${label}`);
     const turnStart = t0 + ci * spb;
