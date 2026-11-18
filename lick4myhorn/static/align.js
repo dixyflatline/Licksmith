@@ -484,6 +484,7 @@ async function alignOpen(work, usable, opts = {}) {
     el.innerHTML = `<div class="small"><b>You tapped ${N} bar lines</b> (${fmtT(p.taps[0])} to ${fmtT(p.taps[N - 1])}).
       Bar 1 of this song's form, the first bar of the solo, is tap # <input id="alTapStart" type="number" min="1" max="${N - 1}" value="${p.start + 1}" style="width:64px">.
       <span id="alTapNote" class="muted"></span>
+      <label class="small" title="Off: only the form's bars are kept and the other taps are dropped. On: the other taps stay on the timeline as dashed blue lines, for another solo later."><input type="checkbox" id="alTapKeep"> keep the taps outside the form (dashed)</label>
       <button class="primary" id="alTapApply">Apply</button> <button class="ghost" id="alTapCancel">Cancel</button></div>`;
     const note = () => {
       const have = N - p.start - 1;   // bars after the chosen tap
@@ -496,9 +497,11 @@ async function alignOpen(work, usable, opts = {}) {
     $("#alTapApply").onclick = async () => {
       msg("Re-quantizing…");
       try {
-        const r = await api(`/api/align/${work}/tap-lines`, { method: "PUT", body: { lines: p.taps, start: p.start } });
+        const keep = $("#alTapKeep").checked;   // by default only the form's own bars are committed
+        const lines = keep ? p.taps : p.taps.slice(p.start, p.start + A.D.n + 1), start = keep ? p.start : 0;
+        const r = await api(`/api/align/${work}/tap-lines`, { method: "PUT", body: { lines, start } });
         A.D = r; A.times = r.times.slice(); A.tapPending = null; tapPanel(); renderBars(); draw();
-        msg(`Bar 1 is tap ${p.start + 1}; ${N} tapped lines kept. ↶ Undo restores the old lines. Use ◀ ▶ to nudge if you tapped a little late.`);
+        msg(`Bar 1 is tap ${p.start + 1}. ${keep ? `${N} tapped lines kept (the ones outside the form are dashed)` : "The taps outside the form were dropped"}. ↶ Undo restores the old lines. Use ◀ ▶ to nudge if you tapped a little late.`);
       } catch (err) { msg(err.message, true); }
     };
   }
