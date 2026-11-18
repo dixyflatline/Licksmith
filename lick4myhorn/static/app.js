@@ -205,10 +205,6 @@ VIEWS.licks = async () => {
 const localDay = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const newId = () => "i" + Math.random().toString(36).slice(2, 9);
 
-// Routine sections that have a tab of their own (the checklist itself lives only on the Routine page).
-const ROUTINE_TABS = { licks: { label: "Licks", re: /lick/i }, play: { label: "Play", re: /tune/i } };
-const routineTabOf = sec => Object.keys(ROUTINE_TABS).find(t => sec.id === t) || Object.keys(ROUTINE_TABS).find(t => ROUTINE_TABS[t].re.test(sec.title));
-
 VIEWS.routine = async () => {
   const day = localDay();
   const R = await api(`/api/routine?day=${day}`);
@@ -236,7 +232,7 @@ VIEWS.routine = async () => {
       ${R.sections.map(sec => {
         const c = sec.items.filter(i => done.has(i.id)).length;
         return `<div class="card rsec"><div class="row"><h3 class="grow">${esc(sec.title)}</h3>
-          <span class="small muted">${c}/${sec.items.length}</span>${routineTabOf(sec) ? `<a class="btn" href="#${routineTabOf(sec)}">Open ${ROUTINE_TABS[routineTabOf(sec)].label} →</a>` : ""}</div>
+          <span class="small muted">${c}/${sec.items.length}</span></div>
           ${sec.items.map(i => `<div class="ritem ${done.has(i.id) ? "done" : ""}">
             <div class="row"><label class="check grow"><input type="checkbox" data-item="${esc(i.id)}" ${done.has(i.id) ? "checked" : ""}> <span>${esc(i.text)}</span></label>
               <button class="ghost small" data-note="${esc(i.id)}" title="Add a comment">${notes[i.id] ? "💬" : "＋ note"}</button></div>
