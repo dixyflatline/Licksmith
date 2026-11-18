@@ -417,3 +417,7 @@ img, svg, canvas { max-width: 100%; }
 .al-sw.human .al-sw-h, .al-sw.computer .al-sw-c { background: var(--brass); color: #1a1a1a; }
 .al-sw.human .al-sw-c:hover { background: rgba(242, 186, 43, .2); color: var(--brass); }
 .al-btns button.al-ic { display: inline-flex; align-items: center; padding: 3px 8px; }
+/* keep the whole waveform visible: the square-wave button next to it overlaps its right edge by a pixel */
+.al-btns button.al-ga.al-ic, .al-btns button#alPickA.al-ic { padding: 3px 12px 3px 5px; justify-content: flex-start; min-width: 0; }
+.al-btns button.al-ga.al-ic svg, .al-btns button#alPickA.al-ic svg { margin-left: -2px; }
+.al-btns button.al-gm.al-ic, .al-btns button#alPickM.al-ic { min-width: 0; }
