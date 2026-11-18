@@ -34,6 +34,7 @@ async function alignOpen(work, usable, opts = {}) {
         <span class="al-btns al-tl-only" title="Move every bar line together, earlier or later, by the step in the box (Alt ← → does the same; add Shift for 5 steps)"><button id="alNudgeL">◀</button><select id="alNudgeStep" title="How far each press moves all the bar lines">
           <option value="10">10 ms</option><option value="25" selected>25 ms</option><option value="50">50 ms</option><option value="100">100 ms</option>
           <option value="q">¼ beat</option><option value="beat">1 beat</option></select><button id="alNudgeR">▶</button></span>
+        <button class="al-tl-only" id="alTap" title="Play the recording and press Enter on beat 1 of every bar: each press sets that bar line. It starts at the first selected bar, or the bar under the cursor. Backspace undoes a tap, Space or Esc finishes.">● Tap bar lines</button>
         <button class="al-tl-only" id="alSetBeat1" title="First drag a bar line onto beat 1. Then press this: every bar line after it moves by the same amount, and the ones before it stay where they are.">Set beat one</button>
         <button id="alUndo" title="Undo (⌘Z)">↶</button><button id="alRedo" title="Redo (⇧⌘Z)">↷</button>
         <button class="al-tl-only" id="alExport">Export MusicXML</button>
@@ -45,7 +46,7 @@ async function alignOpen(work, usable, opts = {}) {
       <div class="small muted al-tl-only" style="margin-top:6px">
         <span style="color:#d9a441">■</span> horn notes &nbsp; <span style="color:#5a9bd0">■</span> bass notes &nbsp;
         Click a note on the timeline to hear it · click elsewhere to seek · Space = play/stop · Ctrl/⌘-scroll = zoom ·
-        drag a bar line onto beat 1, then "Set beat one" moves every later line with it (Shift-drag does it while dragging) · ◀ ▶ or Alt ← → move all the lines</div>
+        drag a bar line onto beat 1, then "Set beat one" moves every later line with it (Shift-drag does it while dragging) · <b>● Tap bar lines</b>: play, then press Enter on beat 1 of every bar · ◀ ▶ or Alt ← → move all the lines</div>
       <div id="alPick" class="al-pick-row al-tl-only"></div>
     </div>
     <h2>Bars</h2>
@@ -377,6 +378,46 @@ async function alignOpen(work, usable, opts = {}) {
   $("#alPlay").onclick = () => toggle("audio");
   $("#alMidi").onclick = () => toggle("midi");
 
+  // ------------------------------------------------------------------ tap bar lines
+  // Play the recording and press Enter on beat 1 of each bar. The first tap sets the bar line of the first selected bar (or the bar
+  // under the cursor), the next tap the following line, and so on. Lines after the last tap move along with it, as with "Set beat one".
+  const tapLines = () => {
+    const k = A.tap, n = k.orig.length - 1, delta = k.taps.length ? k.taps[k.taps.length - 1] - k.orig[k.s + k.taps.length - 1] : 0;
+    A.times = k.orig.map((x, j) => j < k.s ? x : j < k.s + k.taps.length ? k.taps[j - k.s] : Math.min(x + delta, dur() - 0.31 * (n - j)));
+    draw();
+  };
+  const tapPrompt = () => { const k = A.tap; msg(`Tapping: press Enter on beat 1 of bar ${k.s + k.taps.length + 1}. Backspace undoes a tap · Space or Esc finishes.`); };
+  function tapStart() {
+    if (A.tap) { tapEnd(); return; }
+    const s = A.pick ? A.pick.a - 1 : Math.max(0, curBar(audio.currentTime));
+    A.tap = { s, orig: A.times.slice(), taps: [] };
+    const b = $("#alTap"); b.classList.add("primary"); b.textContent = "■ Stop tapping"; b.blur();
+    if (!A.playing) toggle("audio");   // plays from the cursor
+    tapPrompt();
+  }
+  function tapHit() {
+    const k = A.tap, t = audio.currentTime, idx = k.s + k.taps.length, n = k.orig.length - 1;
+    if (idx > n) { tapEnd(); return; }
+    const prev = idx > 0 ? A.times[idx - 1] : 0;
+    if (t < prev + 0.31) { msg("Too close to the previous bar line: ignored.", true); return; }
+    k.taps.push(t); tapLines(); tapPrompt();
+    if (k.s + k.taps.length > n) tapEnd();   // that was the last bar line
+  }
+  function tapUndo() {
+    const k = A.tap; if (!k.taps.length) return;
+    k.taps.pop(); tapLines(); tapPrompt();
+  }
+  async function tapEnd() {
+    const k = A.tap; if (!k) return;
+    A.tap = null;
+    const b = $("#alTap"); if (b) { b.classList.remove("primary"); b.textContent = "● Tap bar lines"; }
+    stopAll();
+    if (!k.taps.length) { A.times = k.orig; draw(); msg("No taps: the bar lines are unchanged."); return; }
+    await pushTimes();
+    msg(`Set ${k.taps.length} bar line${k.taps.length === 1 ? "" : "s"} from bar ${k.s + 1}; every later line moved along with them. Use ◀ ▶ to nudge if you tapped a little late.`);
+  }
+  $("#alTap").onclick = tapStart;
+
   // MuseScore-style keys. Needs a selected note (click one). ↑↓ semitone, ⌘↑↓ octave, Alt+↑↓ scale step,
   // A–G note name, 1 2 4 8 6 = whole/half/quarter/eighth/sixteenth, . dotted, ⌘3 triplet, T tie to the next note, Delete = rest, ←→ move.
   const LEN = { "1": "4", "2": "2", "4": "1", "8": "1/2", "6": "1/4" };
@@ -423,6 +464,11 @@ async function alignOpen(work, usable, opts = {}) {
   A.key = e => {
     if (S.tab !== (LEARN ? "learn" : "transcribe") || /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
     const cmd = e.metaKey || e.ctrlKey, k = e.key;
+    if (A.tap) {   // tap mode owns Enter, Backspace, Space and Esc
+      if (k === "Enter") { e.preventDefault(); if (!e.repeat) tapHit(); return; }
+      if (k === "Backspace") { e.preventDefault(); tapUndo(); return; }
+      if (k === "Escape" || e.code === "Space") { e.preventDefault(); tapEnd(); return; }
+    }
     if (e.code === "Space") { e.preventDefault(); if (LEARN) LEARN.toggle(); else toggle(A.mode || "audio"); return; }
     if (e.altKey && (k === "ArrowLeft" || k === "ArrowRight")) { e.preventDefault(); nudgeAll((k === "ArrowLeft" ? -1 : 1) * nudgeStep() * (e.shiftKey ? 5 : 1)); return; }
     if (k === "ArrowLeft" || k === "ArrowRight") { e.preventDefault(); moveSel(k === "ArrowLeft" ? -1 : 1); return; }
@@ -866,7 +912,7 @@ async function alignOpen(work, usable, opts = {}) {
   };
   $("#alExport").onclick = () => { location.href = `/api/align/${work}/musicxml`; };
 
-  window.__alCleanup = () => { if (LEARN && LEARN.cleanup) LEARN.cleanup(); audio.pause(); midiStop(); cancelAnimationFrame(A.raf); document.removeEventListener("keydown", A.key); window.removeEventListener("resize", resize); window.removeEventListener("resize", padBars); };
+  window.__alCleanup = () => { A.tap = null; if (LEARN && LEARN.cleanup) LEARN.cleanup(); audio.pause(); midiStop(); cancelAnimationFrame(A.raf); document.removeEventListener("keydown", A.key); window.removeEventListener("resize", resize); window.removeEventListener("resize", padBars); };
   window.addEventListener("resize", resize);
   window.addEventListener("resize", padBars);
   Object.assign(A, { clearPick, stopAll, playRange, markBar, paintPick, liveBus, midiNotes, showBar: i => { const prev = A.cur; if (i !== A.cur) { A.cur = i; markBar(prev); } } });
