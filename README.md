@@ -64,6 +64,7 @@ solo" and type bar ranges like `17-20, 33-36`.
   where their chords match beat for beat, transposed and in range. Click any bar to choose
   another lick, play it with the band, and save a practice MusicXML with labels like
   "Chet Baker Tenderly (F)".
+- *Transcribe → Saved transcriptions on this computer*: lists every folder in `library/works` with its size, last change, whether you edited bars, and a warning when two folders come from the same YouTube video. Each has Open and Delete (with a confirmation). The bar editor also has a Delete button next to the song menu.
 - *Learn* (learn by ear): the Transcribe tab's bar cards for a song you transcribed (tick any run of adjacent bars, chorus and bar number, A ▶ / M ▶, score with chords, note editing with all its keys, same colours, Space = start/stop), with a loop controller on top: the ticked bars play as the recording or as MIDI, a draggable tempo slider (shown in BPM; the recording slows without changing pitch, and the clicks and your turn follow the same steady tempo), then an optional silent "your turn" with a soft click. No transcription model, chord import, tempo/key/bars, transcribe-again or waveform.
 - *Progress*: licks known / learning / lapsed, practice per day, upcoming reviews and the keys you
   marked hard.

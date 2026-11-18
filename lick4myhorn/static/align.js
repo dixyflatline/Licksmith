@@ -25,6 +25,7 @@ async function alignOpen(work, usable, opts = {}) {
     <div class="card al-sticky" id="alSticky" style="padding:12px">
       <div class="row" style="margin-bottom:10px">
         <select id="alWork">${usable.map(w => `<option value="${esc(w.work)}" ${w.work === work ? "selected" : ""}>${esc(w.artist ? w.title + " — " + w.artist : w.title || w.work)}</option>`).join("")}</select>
+        <button class="ghost al-tl-only" id="alDelete" title="Delete this song's recording, transcriptions and bar edits from this computer" style="color:var(--red)">Delete</button>
         <label class="small muted al-tl-only">Transcription <select id="alEngine">${D.engines.map(e => `<option ${e === D.engine ? "selected" : ""}>${esc(e)}</option>`).join("")}</select></label>
         <span class="al-btns al-tl-only"><button class="primary" id="alPlay" title="Play the real recording">A ▶</button><button id="alMidi" title="Play the transcribed notes (with your edits) as MIDI, on the same cursor">M ▶</button></span>
         <span id="alTime" class="small muted al-tl-only" style="min-width:120px;font-variant-numeric:tabular-nums"></span>
@@ -828,6 +829,13 @@ async function alignOpen(work, usable, opts = {}) {
   async function reload() { A.D = await api(`/api/align/${work}`); A.times = A.D.times.slice(); renderBars(); draw(); }
 
   // ------------------------------------------------------------------ toolbar
+  if ($("#alDelete")) $("#alDelete").onclick = async () => {
+    if (!confirm(`Delete "${D.title}" (${work}) from this computer?\n\nThis removes its recording, transcriptions and your bar edits, and cannot be undone. Licks you already sent to the library stay.`)) return;
+    try { await api(`/api/align/${encodeURIComponent(work)}`, { method: "DELETE" }); } catch (err) { toast(err.message); return; }
+    toast(`Deleted ${D.title}`);
+    try { localStorage.removeItem("alignWork"); } catch (e) { /* storage blocked */ }
+    go("transcribe");
+  };
   $("#alWork").onchange = e => alignOpen(e.target.value, usable, opts);
   $("#alEngine").onchange = async e => {
     msg("Loading…"); A.D = await api(`/api/align/${work}/engine`, { method: "PUT", body: { engine: e.target.value } });

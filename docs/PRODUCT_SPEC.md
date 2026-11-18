@@ -173,6 +173,10 @@ A generic `api(path, opts)` helper: JSON in/out; non-2xx responses throw an Erro
 
 Controller: Sound (recording or MIDI), Tempo slider in BPM (30–120% of the song's average tempo from its bar lines; `audio.playbackRate`, pitch preserved; MIDI note times scaled by `A.rate`), Listen 1-4 times, optional **Your turn** (silence the length of the bars at the slider tempo, steady soft clicks on every beat when Click is on, independent of the recording's uneven bar lines) and optional one-bar count-in right before each turn right before each of your turns. It loops until stopped; changing bars or options takes effect on the next round. Pressing A ▶ / M ▶ on a card loops that card's span. The ticked bars, song and options are remembered in the browser (`earSetup`).
 
+### 5.2 Managing saved transcriptions
+
+`GET /api/works/disk` lists every folder under `library/works` (title, artist, source URL, YouTube video id, audio present, transcription engines, whether `align.json` exists, size in MB, last change, and `same_video_as` for folders imported from the same video). `DELETE /api/align/{work}` removes the folder (name checked to be a direct child of `library/works`; refused with 409 while a transcription job for it runs) and drops it from the server cache. Licks already sent to the library are separate files and stay. UI: Transcribe tab, "Saved transcriptions on this computer" (Open / Delete with confirm), and a Delete button beside the song menu in the bar editor.
+
 ## 6. Licks page (formerly Today)
 
 Shows today's session: first **reviews that are due** (most overdue first, capped by `max_reviews`, default 20), then **new licks** (`new_per_day`, default 2; favourites first).

@@ -139,6 +139,52 @@ def create_app(root: Path) -> FastAPI:
     async def align_works():
         return AL.list_works(lib.lib)
 
+    def _work_dir(work: str) -> Path:
+        base = (lib.lib / "works").resolve()
+        d = (base / work).resolve()
+        if not work or "/" in work or "\\" in work or d.parent != base or not d.is_dir():
+            raise HTTPException(404, "No such transcription")
+        return d
+
+    def _du(d: Path) -> int:
+        return sum(f.stat().st_size for f in d.rglob("*") if f.is_file())
+
+    @app.get("/api/works/disk")
+    async def works_on_disk():
+        """Every transcription folder under library/works, usable or not, with what is in it (the Transcribe tab's manager)."""
+        base = lib.lib / "works"
+        out, seen = [], {}
+        for d in sorted(base.glob("*")) if base.exists() else []:
+            if not d.is_dir():
+                continue
+            try:
+                fm = json.loads((d / "form.json").read_text()) if (d / "form.json").exists() else {}
+                src = json.loads((d / "source.json").read_text()) if (d / "source.json").exists() else {}
+            except (OSError, ValueError):
+                fm, src = {}, {}
+            m = re.search(r"(?:youtu\.be/|[?&]v=)([\w-]{6,})", src.get("url", ""))
+            vid = m.group(1) if m else None
+            engines = sorted(p.name for p in (d / "engines").glob("*") if (p / "raw.mid").exists()) if (d / "engines").exists() else []
+            edits = [f.stat().st_mtime for f in (d / "align.json", d / "form.json") if f.exists()]
+            out.append({"work": d.name, "title": fm.get("title", d.name), "artist": fm.get("artist", ""), "url": src.get("url", ""),
+                        "video": vid, "has_audio": (d / "audio.wav").exists(), "engines": engines,
+                        "has_form": (d / "form.json").exists(), "aligned": (d / "align.json").exists(),
+                        "mb": round(_du(d) / 1e6, 1), "changed": max(edits) if edits else d.stat().st_mtime})
+            if vid:
+                seen.setdefault(vid, []).append(d.name)
+        for w in out:
+            w["same_video_as"] = [n for n in seen.get(w["video"], []) if n != w["work"]] if w["video"] else []
+        return out
+
+    @app.delete("/api/align/{work}")
+    async def delete_work(work: str):
+        d = _work_dir(work)
+        if any(j.get("work") == work and j.get("state") not in ("done", "error") for j in transcriber.jobs.values()):
+            raise HTTPException(409, "A transcription of this song is still running. Wait for it to finish.")
+        shutil.rmtree(d)
+        _align.pop(work, None)
+        return {"deleted": work}
+
     @app.get("/api/align/{work}")
     async def align_get(work: str):
         return _guard(_aw(work).summary)

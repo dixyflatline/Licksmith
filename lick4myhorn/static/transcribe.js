@@ -56,6 +56,8 @@ VIEWS.transcribe = async () => {
         <div class="small muted" style="margin-top:8px">A recording of two minutes takes a few minutes. The audio stays on this computer. Only use recordings for your own practice.</div>
       </div>
     </details>
+    <details id="trDisk" class="card" style="margin-top:12px"><summary><b>Saved transcriptions on this computer</b> <span class="small muted" id="trDiskSub"></span></summary>
+      <div id="trDiskBody" class="small" style="margin-top:8px"></div></details>
     <div id="trJobs"></div>
     <div id="trWork"></div>`;
   wireChips($("#trBand"));
@@ -63,6 +65,41 @@ VIEWS.transcribe = async () => {
     const f = $("input[name=trSrc]:checked").value === "file";
     $("#trUrlRow").style.display = f ? "none" : ""; $("#trFileRow").style.display = f ? "" : "none";
   });
+
+  // ---------------------------------------------------------------- saved transcriptions (library/works): open or delete
+  async function drawDisk() {
+    const body = $("#trDiskBody"); if (!body) return;
+    let list = [];
+    try { list = await api("/api/works/disk"); } catch (e) { body.textContent = e.message; return; }
+    $("#trDiskSub").textContent = `${list.length} folder${list.length === 1 ? "" : "s"}, ${Math.round(list.reduce((n, w) => n + w.mb, 0))} MB`;
+    const when = t => new Date(t * 1000).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    const byName = Object.fromEntries(list.map(w => [w.work, w]));
+    body.innerHTML = list.length ? list.map(w => {
+      const ok = w.has_audio && w.engines.length;
+      const chips = [w.aligned ? "bars edited" : "no bar edits yet", `${w.engines.length} transcription${w.engines.length === 1 ? "" : "s"}`,
+        ...(ok ? [] : [w.has_audio ? "no transcription" : "no audio"]), `${w.mb} MB`, `changed ${when(w.changed)}`];
+      return `<div class="row" style="padding:8px 0;border-top:1px solid var(--line);align-items:baseline">
+        <div class="grow"><b>${esc(w.title)}</b>${w.artist ? ` <span class="muted">— ${esc(w.artist)}</span>` : ""}
+          <div class="muted">${esc(w.work)} · ${chips.map(esc).join(" · ")}</div>
+          ${w.same_video_as.length ? `<div style="color:var(--brass)">Same video as ${w.same_video_as.map(n => esc(byName[n] ? n : n)).join(", ")}: probably a duplicate import.</div>` : ""}</div>
+        <button data-disk-open="${esc(w.work)}" ${ok ? "" : "disabled"} title="${ok ? "Open in the bar editor" : "This folder has no audio or no transcription to open"}">Open</button>
+        <button class="ghost" data-disk-del="${esc(w.work)}" style="color:var(--red)">Delete</button></div>`;
+    }).join("") : `<div class="muted">Nothing saved yet.</div>`;
+    $$("[data-disk-open]", body).forEach(b => b.onclick = () => { showWork(b.dataset.diskOpen); $("#trWork").scrollIntoView({ behavior: "smooth" }); });
+    $$("[data-disk-del]", body).forEach(b => b.onclick = () => deleteWork(byName[b.dataset.diskDel]));
+  }
+  async function deleteWork(w) {
+    if (!confirm(`Delete "${w.title}" (${w.work}, ${w.mb} MB) from this computer?\n\nThis removes its recording, transcriptions and your bar edits, and cannot be undone. Licks you already sent to the library stay.`)) return;
+    try { await api(`/api/align/${encodeURIComponent(w.work)}`, { method: "DELETE" }); }
+    catch (e) { toast(e.message); return; }
+    toast(`Deleted ${w.title}`);
+    if (openWork === w.work) { openWork = null; if (window.__alCleanup) window.__alCleanup(); $("#trWork").innerHTML = ""; }
+    works.splice(0, works.length, ...(await api("/api/align")));
+    usable = usableOf(works);
+    drawDisk();
+  }
+  $("#trDisk").addEventListener("toggle", () => { if ($("#trDisk").open) drawDisk(); });
+  drawDisk();
 
   // ---------------------------------------------------------------- jobs
   const stateText = { queued: "Waiting", downloading: "Downloading", preparing: "Preparing", transcribing: "Transcribing", done: "Done", error: "Failed" };
