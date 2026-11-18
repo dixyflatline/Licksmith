@@ -771,6 +771,7 @@ async function alignOpen(work, usable, opts = {}) {
     paintPick(); draw();
     if (LEARN) LEARN.onPick(A.pick);
   }
+  function clearPick() { A.pick = null; paintPick(); draw(); if (LEARN) LEARN.onPick(null); }
   const fitTop = () => document.documentElement.style.setProperty("--al-top", ($("#alSticky").offsetHeight + (parseInt(getComputedStyle(document.documentElement).getPropertyValue("--hdr-h")) || 56) + 14) + "px");
   function paintPick() {
     requestAnimationFrame(fitTop);  // the floating pane changes height with the pick row
@@ -859,7 +860,7 @@ async function alignOpen(work, usable, opts = {}) {
   window.__alCleanup = () => { if (LEARN && LEARN.cleanup) LEARN.cleanup(); audio.pause(); midiStop(); cancelAnimationFrame(A.raf); document.removeEventListener("keydown", A.key); window.removeEventListener("resize", resize); window.removeEventListener("resize", padBars); };
   window.addEventListener("resize", resize);
   window.addEventListener("resize", padBars);
-  Object.assign(A, { stopAll, playRange, markBar, paintPick, liveBus, midiNotes, showBar: i => { const prev = A.cur; if (i !== A.cur) { A.cur = i; markBar(prev); } } });
+  Object.assign(A, { clearPick, stopAll, playRange, markBar, paintPick, liveBus, midiNotes, showBar: i => { const prev = A.cur; if (i !== A.cur) { A.cur = i; markBar(prev); } } });
   if (LEARN) LEARN.attach(A);
   renderBars(); paintPick(); resize();
 }

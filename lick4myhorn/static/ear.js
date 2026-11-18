@@ -100,14 +100,15 @@ VIEWS.learn = async () => {
   const ctl = {
     toggle: () => { if (running) stop(); else start(null, pref.source); },
     playSpan: (span, mode) => { start({ a: span.a, b: span.b }, mode); },
-    onPick: p => { if (p) { pref.a = p.a; pref.b = p.b; remember(); } },
-    cleanup: () => { stop(); },
+    onPick: p => { if (p) { pref.a = p.a; pref.b = p.b; remember(); } else { pref.a = pref.b = 0; remember(); } },
+    cleanup: () => { stop(); unblank(); },
     attach(a) {
       A = a;
+      document.removeEventListener("click", blank); document.addEventListener("click", blank);   // cleanup() removes it, and a song change cleans up first
       { const T = A.times, nb = T.length - 1; bpm0 = Math.max(30, nb * A.D.bpb * 60 / Math.max(1, T[nb] - T[0])); }
       if (pref.work !== A.work) { pref.work = A.work; pref.a = 1; pref.b = Math.min(4, A.D.bars.length); }
-      pref.a = Math.max(1, Math.min(pref.a, A.D.bars.length)); pref.b = Math.max(pref.a, Math.min(pref.b, A.D.bars.length));
-      A.pick = { a: pref.a, b: pref.b };
+      if (pref.a >= 1) { pref.a = Math.min(pref.a, A.D.bars.length); pref.b = Math.max(pref.a, Math.min(pref.b, A.D.bars.length)); A.pick = { a: pref.a, b: pref.b }; }
+      else A.pick = null;
       remember();
       const hasMidi = A.D.bars.some(b => b.notes.some(x => x.midi != null));
       if (!hasMidi && pref.source === "midi") pref.source = "rec";
@@ -117,6 +118,7 @@ VIEWS.learn = async () => {
         <label class="check">Sound <select id="eaSource"><option value="rec">Recording</option><option value="midi" ${hasMidi ? "" : "disabled"}>MIDI</option></select></label>
         <label class="check" title="Drag to set the tempo. It slows the recording (pitch unchanged), and sets the clicks and the length of your turn.">Tempo <input type="range" id="eaTempo" min="${Math.round(bpm0 * 0.3)}" max="${Math.round(bpm0 * 1.2)}" step="1" style="width:150px"> <b id="eaBpm" style="min-width:64px;display:inline-block">♩ = ${Math.round(curBpm())}</b></label>
         <label class="check">Listen <select id="eaListens">${[1, 2, 3, 4].map(v => `<option>${v}</option>`).join("")}</select> ×</label>
+        <button id="eaClear" class="ghost" title="Untick all bars (clicking the empty space beside the cards does the same)">Clear selection</button>
         <label class="check"><input type="checkbox" id="eaTurn"> Your turn</label>
         <label class="check" title="A soft click on the beats while it is your turn"><input type="checkbox" id="eaClick"> Click</label>
         <label class="check" title="One bar of clicks at the tempo, right before each of your turns"><input type="checkbox" id="eaCountin"> Count-in</label>
@@ -132,12 +134,20 @@ VIEWS.learn = async () => {
       bind("eaListens", "listens", x => +x.value);
       bind("eaTurn", "turn", x => x.checked); bind("eaClick", "click", x => x.checked); bind("eaCountin", "countin", x => x.checked);
       $("#eaPlay").onclick = () => ctl.toggle();
+      $("#eaClear").onclick = () => A.clearPick();
       setPlayBtn();
     },
   };
+  // a click on the empty space beside or between the cards clears the selection
+  const blank = ev => {
+    if (S.tab !== "learn" || !A) return;
+    const t = ev.target;
+    if (t === document.body || t === document.documentElement || t === $("#main") || t === $("#alBars") || (t.classList && t.classList.contains("al-learn"))) A.clearPick();
+  };
+  const unblank = () => document.removeEventListener("click", blank);
   // leaving the tab ends the loop and releases the keyboard
   const watch = setInterval(() => {
-    if (S.tab !== "learn") { clearInterval(watch); stop(); if (window.__alCleanup) window.__alCleanup(); }
+    if (S.tab !== "learn") { clearInterval(watch); unblank(); stop(); if (window.__alCleanup) window.__alCleanup(); }
   }, 300);
 
   main().innerHTML = `<h1>Learn</h1><div id="trWork"></div>`;
