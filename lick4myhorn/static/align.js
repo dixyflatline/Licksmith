@@ -32,7 +32,7 @@ async function alignOpen(work, usable, opts = {}) {
     <div class="card al-sticky" id="alSticky" style="padding:12px">
       <div class="row" style="margin-bottom:10px">
         <select id="alWork">${usable.map(w => `<option value="${esc(w.work)}" ${w.work === work ? "selected" : ""}>${esc(w.artist ? w.title + " — " + w.artist : w.title || w.work)}</option>`).join("")}</select>
-        <span class="al-btns al-tl-only"><button id="alSave" title="Mark this version of the transcription as final">✓ Saved</button><button id="alRevert" class="ghost" title="Throw away the changes since the last save">Revert</button></span>
+        <span class="al-btns al-tl-only"><button id="alSave" class="al-ic" aria-label="Save" title="Mark this version of the transcription as final"></button><button id="alRevert" class="ghost" title="Throw away the changes since the last save">Revert</button></span>
         <button class="ghost al-tl-only" id="alDelete" title="Delete this song's recording, transcriptions and bar edits from this computer" style="color:var(--red)">Delete</button>
         <label class="small muted al-tl-only">Transcription <select id="alEngine">${D.engines.map(e => `<option ${e === D.engine ? "selected" : ""}>${esc(e)}</option>`).join("")}</select></label>
         <span class="al-btns al-tl-only"><button class="primary" id="alPlay" title="Play the real recording">A ▶</button><button id="alMidi" title="Play the transcribed notes (with your edits) as MIDI, on the same cursor">M ▶</button></span>
@@ -415,9 +415,9 @@ async function alignOpen(work, usable, opts = {}) {
   function paintSave() {
     const b = $("#alSave"), r = $("#alRevert"); if (!b) return;
     const dirty = !!A.D.dirty;
-    b.textContent = dirty ? "● Save changes" : "✓ Saved";
-    b.classList.toggle("primary", dirty); b.disabled = !dirty;
-    b.title = dirty ? "You have changes since the last saved version: save them to confirm" : (A.D.saved_at ? `Saved ${new Date(A.D.saved_at * 1000).toLocaleString()}` : "No changes since this transcription was opened");
+    b.innerHTML = ICON_SAVE;
+    b.classList.toggle("ea-gold", dirty); b.disabled = !dirty;
+    b.title = dirty ? "Save: you have changes since the last saved version, save them to confirm" : (A.D.saved_at ? `Saved ${new Date(A.D.saved_at * 1000).toLocaleString()}` : "Saved: no changes since this transcription was opened");
     r.disabled = !dirty;
     window.__alDirty = dirty;
   }
@@ -604,6 +604,7 @@ async function alignOpen(work, usable, opts = {}) {
   // recording = a smooth sound wave; MIDI = a square wave
   const ICON_WAVE = `<svg viewBox="0 0 28 16" width="26" height="15" aria-hidden="true"><path d="M1 8h3l2-5 3 10 3-12 3 14 3-10 2 3h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   const ICON_SQUARE = `<svg viewBox="0 0 28 16" width="26" height="15" aria-hidden="true"><path d="M1 12h4V4h6v8h6V4h6v8h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" stroke-linejoin="miter"/></svg>`;
+  const ICON_SAVE = `<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M5 3h11l4 4v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 3v5h7V3M7 21v-7h10v7" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>`;
   const ICON_HUMAN = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="7.5" r="4" fill="currentColor"/><path d="M4 21c0-4.4 3.6-7.5 8-7.5s8 3.1 8 7.5z" fill="currentColor"/></svg>`;
   const ICON_COMPUTER = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 20h8M12 16v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
   function barHtml(b) {

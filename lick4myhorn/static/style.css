@@ -424,3 +424,6 @@ img, svg, canvas { max-width: 100%; }
 .al-btns button.al-ic + button.al-ic { margin-left: 4px !important; }
 .al-btns button.al-ic:hover, .al-btns button.al-ic:focus-visible { z-index: 1; }
 .al-btns button.al-ga.al-ic, .al-btns button#alPickA.al-ic { padding: 3px 9px 3px 6px; }
+/* no solid yellow buttons on the Transcribe and Learn pages: the primary ones are a gold outline instead */
+#trWork button.primary, #trWork .btn.primary { background: transparent; color: var(--brass); border-color: var(--brass); }
+#trWork button.primary:hover:not(:disabled) { background: rgba(242, 186, 43, .14); color: var(--brass); }
