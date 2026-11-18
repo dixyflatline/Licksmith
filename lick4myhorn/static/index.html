@@ -12,26 +12,29 @@
 </head>
 <body>
 <header class="top">
-  <a class="brand" href="#today" aria-label="Licksmith"><img src="/static/brand/icon.svg" alt="" width="34" height="34"><span>Licksmith</span></a>
+  <a class="brand" href="#routine" aria-label="Licksmith"><img src="/static/brand/icon.svg" alt="" width="34" height="34"><span>Licksmith</span></a>
   <span class="navarrows"><button class="ghost" id="navBack" title="Back (previous page)">←</button><button class="ghost" id="navFwd" title="Forward">→</button></span>
   <nav class="tabs">
-    <a href="#today" data-tab="today">Today</a>
     <a href="#routine" data-tab="routine">Routine</a>
+    <a href="#learn" data-tab="learn">Learn</a>
+    <a href="#licks" data-tab="licks">Licks</a>
+    <a href="#tunes" data-tab="tunes">Tunes</a>
+    <a href="#progress" data-tab="progress">Progress</a>
     <a href="#library" data-tab="library">Library</a>
     <a href="#import" data-tab="import">Import</a>
-    <a href="#tunes" data-tab="tunes">Tunes</a>
     <a href="#transcribe" data-tab="transcribe">Transcribe</a>
-    <a href="#progress" data-tab="progress">Progress</a>
     <a href="#settings" data-tab="settings">Settings</a>
   </nav>
   <div class="spacer"></div>
   <label class="display-toggle check"><input type="checkbox" id="concertToggle"> Concert pitch</label>
 </header>
+<div id="routineDock"></div>
 <main id="main"></main>
 <script src="/static/audio.js"></script>
 <script src="/static/app.js"></script>
 <script src="/static/align.js"></script>
 <script src="/static/transcribe.js"></script>
 <script src="/static/lickedit.js"></script>
+<script src="/static/ear.js"></script>
 </body>
 </html>

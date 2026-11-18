@@ -49,7 +49,8 @@ solo" and type bar ranges like `17-20, 33-36`.
 
 **Pages.**
 
-- *Today*: reviews that are due, then new licks (2 a day by default, favorites first).
+- *Routine* (landing page): your daily practice checklist. "Learn licks" opens the Licks tab and "Learn tunes" opens the Tunes tab, each showing its own checklist with a "Done" button back to the Routine.
+- *Licks* (was Today): reviews that are due, then new licks (2 a day by default, favorites first).
 - *Practice*: the lick in each key, in your key order. Play runs a count-in, the lick, then
   the same bars with only the band so you play it back; it moves to the next key after N
   times. Space = play/stop, T = mark the key as hard, 1–4 = rate Again / Hard / Good / Easy.
@@ -63,6 +64,7 @@ solo" and type bar ranges like `17-20, 33-36`.
   where their chords match beat for beat, transposed and in range. Click any bar to choose
   another lick, play it with the band, and save a practice MusicXML with labels like
   "Chet Baker Tenderly (F)".
+- *Learn* (learn by ear): pick a song you transcribed and a stretch of bars (click a bar, then another). The stretch loops as the recording or as MIDI, from 40% to 100% speed without changing pitch, and an optional silent "your turn" (with a soft click) follows. It has none of the transcribing tools; the bar lines come from the Transcribe tab.
 - *Progress*: licks known / learning / lapsed, practice per day, upcoming reviews and the keys you
   marked hard.
 - *Settings*: B♭ or concert display, written range (default F♯3–C6), key order (default

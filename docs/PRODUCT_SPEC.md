@@ -157,7 +157,7 @@ A **work** is a folder `library/works/<slug>/` holding one recording and everyth
 
 Single page. Header: brand "Lick**4**MyHorn" (the 4 in the accent colour), back/forward arrow buttons (own history stack), tabs, spacer, **Concert pitch** checkbox.
 
-Tabs, in order: **Today, Library, Import, Tunes, Transcribe, Progress, Settings**. Hash routing (`#today`, `#library`, `#transcribe`, …). Opening a lick or a tune pushes a history entry so the back arrow returns to the previous view.
+Tabs, in order: **Routine, Learn, Licks, Tunes, Progress, Library, Import, Transcribe, Settings**. Routine is the landing page. Hash routing (`#routine`, `#licks`, `#library`, `#transcribe`, …); the old `#today` hash opens Licks. The Routine sections "Learn licks" and "Learn tunes" have an "Open Licks/Tunes" button; the Licks and Tunes tabs show that section's checklist above the page, with a "Done — back to Routine" button. Opening a lick or a tune pushes a history entry so the back arrow returns to the previous view.
 
 Visual style: dark theme, brass/gold accent (`#d9a441`-like), red `--again` for errors, panels with 1px lines and 8px radius, monospace for chord text. Layout is responsive: 4-column bar grid collapses to 2 columns below 900 px.
 
@@ -167,7 +167,11 @@ A generic `api(path, opts)` helper: JSON in/out; non-2xx responses throw an Erro
 
 ---
 
-## 6. Today page
+### 5.1 Learn tab (learn by ear)
+
+`static/ear.js`, `VIEWS.learn`, second tab after Routine. A song menu (works with audio), a strip of all bars (click one to start a stretch, another to end it, either order; or type "from bar / to bar"), and a transport: Play (space), Sound (recording or MIDI), Speed 40-100% (`audio.playbackRate` with pitch preserved; MIDI note times are scaled), Listen 1-4 times, then an optional **Your turn** (silence of the same length, with soft clicks on the beats when Click is on) and an optional one-bar count-in. It loops until stopped; changing the bars or any option takes effect at the next round. The bar playing is outlined yellow, the chosen stretch is red. Uses only the bar lines (`times`) and notes already saved by the Transcribe tab; it has no transcription, chord, tempo or waveform controls. Setup is remembered in the browser (`earSetup`).
+
+## 6. Licks page (formerly Today)
 
 Shows today's session: first **reviews that are due** (most overdue first, capped by `max_reviews`, default 20), then **new licks** (`new_per_day`, default 2; favourites first).
 
@@ -216,6 +220,8 @@ Opened from Today/Library. Shows the lick in the current key and a strip of the 
 - **Hear lick** toggle (`play_lick`): off = band only.
 - **Recording mode**: if the lick has a recording, Practice plays **that recording** shifted to the key and time-stretched to the tempo (ffmpeg, cached under `licks/audio/cache`), with the band still playing; the Sound menu switches to MIDI. Licks without a recording always use MIDI. The note being heard lights up in red in both modes (for the recording, using bar-position marks saved with the clip; for MIDI, from the clock).
 - Keyboard: **Space** play/stop; **T** mark the current key as "hard" (trouble key); **1–4** rate Again/Hard/Good/Easy.
+- **Remembered setup per lick.** Stay in this key, times per key, start key, key order, hear lick, sound, your turn, backing and swing are saved per lick (`lick_practice` table) every time one is changed, and used the next time that lick is opened. A lick with no setup of its own starts from the latest one used anywhere (`practice_last` setting; the start key and sound are not shared).
+- **Hard keys.** "Mark key hard" (T) is saved per lick and key (`key_hard` table). Next time: hard keys come first in the key order and get twice the repetitions. A hard key that was played through and rated Good or Easy without being marked again that session is unmarked. The Licks tab has "Practice hard keys", a session of only those licks and keys. Progress shows, per key, in how many licks it is hard, and says so when it is three or more (a technique gap, not one lick). `GET /api/hard`, `POST /api/licks/{id}/hard`, `POST /api/licks/{id}/practice-cfg`.
 - **Rating** ends the lick: the FSRS rating schedules the next review; the buttons show the interval each rating would give (`preview_intervals`). A `reviews` row logs rating, keys done, trouble keys, tempo.
 
 ### 8.2 FSRS parameters

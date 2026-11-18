@@ -62,6 +62,17 @@ CREATE TABLE IF NOT EXISTS reviews(
   due_after TEXT,
   stability REAL
 );
+CREATE TABLE IF NOT EXISTS key_hard(          -- keys you marked hard for a lick; cleared when you play them well
+  lick_id INTEGER REFERENCES licks(id) ON DELETE CASCADE,
+  pc INTEGER,
+  ts TEXT,
+  PRIMARY KEY(lick_id, pc)
+);
+CREATE TABLE IF NOT EXISTS lick_practice(      -- the practice setup you last used for each lick
+  lick_id INTEGER PRIMARY KEY REFERENCES licks(id) ON DELETE CASCADE,
+  cfg TEXT,
+  ts TEXT
+);
 CREATE TABLE IF NOT EXISTS key_tempo(
   lick_id INTEGER REFERENCES licks(id) ON DELETE CASCADE,
   pc INTEGER,
@@ -114,15 +125,16 @@ DEFAULT_ROUTINE = [
         "Long tones", "Lip slurs / flexibility", "Mouthpiece buzzing", "Easy scales at a slow tempo")},
     {"id": "technical", "title": "Technical study", "items": _items(
         "Scales and arpeggios in all keys", "Interval / pattern exercises", "Tonguing or articulation study")},
-    {"id": "tunes", "title": "Learn tunes", "items": _items(
-        "Melody from memory", "Chord tones / guide tones over the changes", "Solo over the form with a backing track")},
     {"id": "licks", "title": "Learn licks", "items": _items(
         "Today's lick session (reviews + new)", "One lick in all 12 keys")},
+    {"id": "tunes", "title": "Learn tunes", "items": _items(
+        "Melody from memory", "Chord tones / guide tones over the changes", "Solo over the form with a backing track")},
     {"id": "cooldown", "title": "Cool down", "items": _items(
         "Soft low-register playing", "Long tones, pp", "Rest the chops")},
 ]
 
 DEFAULTS = {
+    "practice_last": None,          # practice setup of the most recent session; a lick with none of its own starts from this
     "routine": DEFAULT_ROUTINE,     # practice checklist: sections of items, checked off once per day
     "display": "written",          # written (B-flat) | concert
     "range_low": 54,               # written F#3

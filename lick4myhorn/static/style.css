@@ -210,7 +210,9 @@ button.listen { padding: 4px 9px; font-size: 13px; border-color: var(--line); co
 .al-bar { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; min-width: 0; }
 .al-pad { visibility: hidden; }
 .al-bar.locked { border-color: var(--brass-dim); }
-.al-bar.now { outline: 2px solid #ff5d5d; }
+/* the bar that is playing: yellow, so it cannot be mistaken for a picked bar (red) */
+.al-bar.now { outline: 2px solid var(--brass); background: rgba(242, 186, 43, .12); }
+.al-bar.now.picked { outline-offset: 2px; }
 .al-bar-head { display: flex; align-items: center; gap: 8px; margin: -4px -4px 4px; padding: 4px; min-height: 36px; border-radius: 6px;
   cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
 .al-bar-head:hover { background: var(--panel-2); }
@@ -395,3 +397,14 @@ img, svg, canvas { max-width: 100%; }
   .transport .slider input[type=range] { flex: 1 1 100%; order: 5; }
   .tile { flex-basis: 100px; }
 }
+
+/* routine checklist docked above the Licks and Tunes pages */
+.rdock { margin-bottom: 16px; }
+#pTrouble.on { background: rgba(224, 82, 82, .18); border-color: var(--again); color: var(--again); font-weight: 600; }
+
+/* Learn by ear: the bars of a song as a strip you pick a stretch from */
+.ear-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); gap: 4px; max-height: 230px; overflow-y: auto; padding: 2px; }
+.ear-bar { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 5px 2px; font-size: 13px; }
+.ear-bar small { color: var(--muted); font-size: 11px; font-family: ui-monospace, Menlo, monospace; }
+.ear-bar.sel { background: rgba(210, 35, 27, .22); border-color: var(--red); color: var(--text); }
+.ear-bar.now { outline: 2px solid var(--brass); background: rgba(242, 186, 43, .2); }
