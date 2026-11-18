@@ -16,6 +16,7 @@ Bars are numbered 1..N *inside the transcribed section* (bar 1 = first bar of th
 from __future__ import annotations
 
 import json
+import time
 import re
 from fractions import Fraction as F
 from pathlib import Path
@@ -95,12 +96,47 @@ class AlignWork:
         st.setdefault("bars", {})
         if len(st.get("bar_times") or []) != self.n + 1:
             st["bar_times"] = self._initial_times()
-            st.pop("tap_lines", None); st.pop("tap_start", None)
+            st.pop("tap_lines", None); st.pop("tap_start", None); st.pop("lines_cleared", None)
         return st
 
     def _snap(self) -> dict:
         return json.loads(json.dumps({"bar_times": self.state["bar_times"], "bars": self.state["bars"],
-                                      "tap_lines": self.state.get("tap_lines"), "tap_start": self.state.get("tap_start")}))
+                                      "tap_lines": self.state.get("tap_lines"), "tap_start": self.state.get("tap_start"),
+                                      "lines_cleared": bool(self.state.get("lines_cleared"))}))
+
+    # -- the confirmed version: everything you do is kept as you go, but "Save" marks a version as final and
+    #    "Revert" goes back to it, so later changes can be confirmed or thrown away.
+    def _saved(self) -> dict:
+        if "saved" not in self.state:   # works from before this existed start with what they have now as the saved version
+            self.state["saved"] = self._snap()
+            self.save()   # remember the starting point, so a restart does not make the edits look saved
+        return self.state["saved"]
+
+    def dirty(self) -> bool:
+        return self._snap() != self._saved()
+
+    def save_version(self) -> None:
+        self.state["saved"] = self._snap()
+        self.state["saved_at"] = time.time()
+        self.save()
+
+    def revert_to_saved(self) -> None:
+        snap = self._saved()
+        if self._snap() == snap:
+            return
+        self._push()
+        self.state.update(json.loads(json.dumps(snap)))
+        self._auto_cache = None
+        self.save()
+
+    def clear_lines(self) -> None:
+        """Forget every bar line, detected or dragged, so you can tap them from scratch. The notes of bars you edited stay."""
+        self._push()
+        self.state.pop("tap_lines", None); self.state.pop("tap_start", None)
+        self.state["bar_times"] = self._initial_times()
+        self.state["lines_cleared"] = True
+        self._auto_cache = None
+        self.save()
 
     def _push(self) -> None:
         """Remember the bar lines and your bar edits before a change (⌘Z)."""
@@ -205,6 +241,7 @@ class AlignWork:
             raise ValueError("Bar lines must stay in order and at least 0.3 s apart")
         self._push()
         self.state["bar_times"] = [round(x, 4) for x in t]
+        self.state.pop("lines_cleared", None)
         tl, st = self.state.get("tap_lines"), self.state.get("tap_start", 0)
         if tl and st + len(t) <= len(tl):   # the bar lines of the form are a window onto the tapped lines: keep them in step
             tl[st:st + len(t)] = self.state["bar_times"]
@@ -229,6 +266,7 @@ class AlignWork:
             win.append(round(win[-1] + step, 4))
         self._push()
         self.state["tap_lines"], self.state["tap_start"] = t, start
+        self.state.pop("lines_cleared", None)
         self.state["bar_times"] = win
         self._auto_cache = None
         self.save()
@@ -435,6 +473,7 @@ class AlignWork:
                 "engine": self.state.get("engine"), "engines": self.engines(),
                 "times": self.state["bar_times"], "bars": self.bars_view(),
                 "tap_lines": self.state.get("tap_lines"), "tap_start": self.state.get("tap_start", 0),
+                "lines_cleared": bool(self.state.get("lines_cleared")), "dirty": self.dirty(), "saved_at": self.state.get("saved_at"),
                 "horn": [[round(n["onset"], 3), round(n["offset"], 3), n["pitch"]] for n in horn],
                 "bass": [[round(n["onset"], 3), round(n["offset"], 3), n["pitch"]] for n in bass],
                 "written_shift": _WRITTEN_SEMIS.get(self.instrument, 0)}

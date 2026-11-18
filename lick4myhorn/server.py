@@ -212,6 +212,29 @@ def create_app(root: Path) -> FastAPI:
         _guard(w.set_times, body["times"])
         return w.summary()
 
+    @app.get("/api/align/{work}/status")
+    async def align_status(work: str):
+        w = _aw(work)
+        return {"dirty": w.dirty(), "saved_at": w.state.get("saved_at"), "lines_cleared": bool(w.state.get("lines_cleared"))}
+
+    @app.post("/api/align/{work}/save")
+    async def align_save(work: str):
+        w = _aw(work)
+        w.save_version()
+        return w.summary()
+
+    @app.post("/api/align/{work}/revert")
+    async def align_revert(work: str):
+        w = _aw(work)
+        w.revert_to_saved()
+        return w.summary()
+
+    @app.post("/api/align/{work}/clear-lines")
+    async def align_clear_lines(work: str):
+        w = _aw(work)
+        w.clear_lines()
+        return w.summary()
+
     @app.put("/api/align/{work}/tap-lines")
     async def align_tap_lines(work: str, body: dict = Body(...)):
         w = _aw(work)

@@ -3,10 +3,17 @@
 "use strict";
 
 /* The aligner is opened by the Transcribe page (transcribe.js) into #trWork. */
+const alApiBase = (...a) => api(...a);   // alignOpen shadows `api` with a wrapper that tracks changes
 // opts.learn (the Learn tab) shows only the bar cards and hands playback to the loop controller in ear.js:
 // no timeline, tempo/key/bars, chords or transcription controls.
 async function alignOpen(work, usable, opts = {}) {
   const LEARN = opts.learn || null;
+  // every change to this song goes through here, so the Save button can follow it
+  let statusTimer = 0;
+  const api = (u, o) => alApiBase(u, o).then(r => {
+    if (o && (o.body !== undefined || o.method) && /\/api\/align\/[^/]+\/(?!status)/.test(u) && !/\/(preview|detect|peaks|svg)/.test(u)) { clearTimeout(statusTimer); statusTimer = setTimeout(refreshStatus, 120); }
+    return r;
+  });
   if (window.__alCleanup) window.__alCleanup();
   try { localStorage.setItem("alignWork", work); } catch (e) { /* storage blocked */ }
   const [D, peaks] = await Promise.all([api(`/api/align/${work}`),
@@ -25,6 +32,7 @@ async function alignOpen(work, usable, opts = {}) {
     <div class="card al-sticky" id="alSticky" style="padding:12px">
       <div class="row" style="margin-bottom:10px">
         <select id="alWork">${usable.map(w => `<option value="${esc(w.work)}" ${w.work === work ? "selected" : ""}>${esc(w.artist ? w.title + " — " + w.artist : w.title || w.work)}</option>`).join("")}</select>
+        <span class="al-btns al-tl-only"><button id="alSave" title="Mark this version of the transcription as final">✓ Saved</button><button id="alRevert" class="ghost" title="Throw away the changes since the last save">Revert</button></span>
         <button class="ghost al-tl-only" id="alDelete" title="Delete this song's recording, transcriptions and bar edits from this computer" style="color:var(--red)">Delete</button>
         <label class="small muted al-tl-only">Transcription <select id="alEngine">${D.engines.map(e => `<option ${e === D.engine ? "selected" : ""}>${esc(e)}</option>`).join("")}</select></label>
         <span class="al-btns al-tl-only"><button class="primary" id="alPlay" title="Play the real recording">A ▶</button><button id="alMidi" title="Play the transcribed notes (with your edits) as MIDI, on the same cursor">M ▶</button></span>
@@ -34,6 +42,7 @@ async function alignOpen(work, usable, opts = {}) {
         <span class="al-btns al-tl-only" title="Move every bar line together, earlier or later, by the step in the box (Alt ← → does the same; add Shift for 5 steps)"><button id="alNudgeL">◀</button><select id="alNudgeStep" title="How far each press moves all the bar lines">
           <option value="10">10 ms</option><option value="25" selected>25 ms</option><option value="50">50 ms</option><option value="100">100 ms</option>
           <option value="q">¼ beat</option><option value="beat">1 beat</option></select><button id="alNudgeR">▶</button></span>
+        <button class="al-tl-only" id="alClearLines" title="Forget every bar line, detected or dragged by hand, so you can tap them from scratch. Your edited notes stay; Undo brings the lines back.">Clear bar lines</button>
         <button class="al-tl-only" id="alTap" title="Play the recording and press Enter on beat 1 of every bar, from before the solo if you like. When you finish you say which tap is bar 1 of the form. Backspace undoes a tap, Space pauses or resumes, Esc finishes.">● Tap bar lines</button>
         <button class="al-tl-only" id="alSetBeat1" title="First drag a bar line onto beat 1. Then press this: every bar line after it moves by the same amount, and the ones before it stay where they are.">Set beat one</button>
         <button id="alUndo" title="Undo (⌘Z)">↶</button><button id="alRedo" title="Redo (⇧⌘Z)">↷</button>
@@ -155,13 +164,15 @@ async function alignOpen(work, usable, opts = {}) {
       ctx.stroke();
     }
     // bars: shaded locked bars, then lines
-    const T = A.times;
+    // the form's own bar lines are hidden while they are cleared, and while tapping, so only the taps show
+    const hideLines = !!(A.D.lines_cleared || A.tap || A.tapPending);
+    const T = hideLines ? [] : A.times;
     A.D.bars.forEach((b, i) => {
-      if (!b.locked) return;
+      if (!b.locked || hideLines) return;
       ctx.fillStyle = "rgba(217,164,65,.10)";
       ctx.fillRect(t2x(T[i]), H.ruler, (T[i + 1] - T[i]) * A.pps, HT - H.ruler);
     });
-    if (A.pick && A.pick.b > A.pick.a) {
+    if (A.pick && A.pick.b > A.pick.a && !hideLines) {
       ctx.fillStyle = "rgba(210,35,27,.22)";
       ctx.fillRect(t2x(T[A.pick.a - 1]), H.ruler, (T[A.pick.b] - T[A.pick.a - 1]) * A.pps, HT - H.ruler);
     }
@@ -181,6 +192,10 @@ async function alignOpen(work, usable, opts = {}) {
         ctx.fillText(String(i + 1), x + 4, H.ruler / 2);
       }
     });
+    if (A.D.lines_cleared && !A.tap && !A.tapPending) {
+      ctx.fillStyle = "#e0b45a"; ctx.font = "13px system-ui"; ctx.textAlign = "center";
+      ctx.fillText("Bar lines cleared: press ● Tap bar lines and tap them in", W / 2, HT / 2); ctx.textAlign = "start";
+    }
     // tapped lines outside the form (and, while tapping or choosing bar 1, all the taps): dashed blue, numbered
     {
       const P = A.tapPending, ex = P ? { lines: P.taps, start: P.start } : A.tap ? { lines: A.tap.taps, start: -1 } : A.D.tap_lines ? { lines: A.D.tap_lines, start: A.D.tap_start || 0 } : null;
@@ -394,6 +409,36 @@ async function alignOpen(work, usable, opts = {}) {
   audio.addEventListener("ended", () => { midiStop(); A.playing = false; setButtons(); if (A.tap) tapEnd(true); if (A.onEnd) A.onEnd(); });
   $("#alPlay").onclick = () => toggle("audio");
   $("#alMidi").onclick = () => toggle("midi");
+
+  // ------------------------------------------------------------------ save / revert / clear
+  // Changes are kept as you make them, so nothing is lost; "Save" marks a version as final, and "Revert" goes back to it.
+  function paintSave() {
+    const b = $("#alSave"), r = $("#alRevert"); if (!b) return;
+    const dirty = !!A.D.dirty;
+    b.textContent = dirty ? "● Save changes" : "✓ Saved";
+    b.classList.toggle("primary", dirty); b.disabled = !dirty;
+    b.title = dirty ? "You have changes since the last saved version: save them to confirm" : (A.D.saved_at ? `Saved ${new Date(A.D.saved_at * 1000).toLocaleString()}` : "No changes since this transcription was opened");
+    r.disabled = !dirty;
+    window.__alDirty = dirty;
+  }
+  async function refreshStatus() {
+    try { const st = await alApiBase(`/api/align/${work}/status`); Object.assign(A.D, st); paintSave(); draw(); } catch (e) { /* page changed */ }
+  }
+  if ($("#alSave")) {
+    $("#alSave").onclick = async () => {
+      try { Object.assign(A.D, await alApiBase(`/api/align/${work}/save`, { method: "POST", body: {} })); } catch (err) { msg(err.message, true); return; }
+      paintSave(); msg("Saved: this is now the final version. Later changes will ask to be saved again.");
+    };
+    $("#alRevert").onclick = async () => {
+      if (!confirm("Throw away every change since the last save?\n\nBar lines and note edits go back to the saved version (Undo brings them back).")) return;
+      try { await api(`/api/align/${work}/revert`, { method: "POST", body: {} }); await reload(); msg("Reverted to the last saved version."); } catch (err) { msg(err.message, true); }
+    };
+    $("#alClearLines").onclick = async () => {
+      if (!confirm("Clear every bar line (detected or moved by hand) so you can tap them from scratch?\n\nYour edited notes stay. Undo brings the lines back.")) return;
+      try { await api(`/api/align/${work}/clear-lines`, { method: "POST", body: {} }); await reload(); msg("Bar lines cleared. Press ● Tap bar lines and tap them in."); } catch (err) { msg(err.message, true); }
+    };
+  }
+  if (!window.__alUnloadGuard) { window.__alUnloadGuard = true; window.addEventListener("beforeunload", e => { if (window.__alDirty) { e.preventDefault(); e.returnValue = ""; } }); }
 
   // ------------------------------------------------------------------ tap bar lines
   // Play the recording and press Enter on beat 1 of every bar, from wherever you like: before the solo to find the groove, through
@@ -915,6 +960,7 @@ async function alignOpen(work, usable, opts = {}) {
     for (let k = (cols - i % cols) % cols; k > 0; k--) { const e = document.createElement("div"); e.className = "al-pad"; box.insertBefore(e, first); }
   }
   function renderBars() {
+    if (typeof paintSave === "function") paintSave();
     const box = $("#alBars");
     A.D.bars.forEach(b => {
       let el = $(`.al-bar[data-n="${b.n}"]`, box);
@@ -954,7 +1000,7 @@ async function alignOpen(work, usable, opts = {}) {
   };
   $("#alExport").onclick = () => { location.href = `/api/align/${work}/musicxml`; };
 
-  window.__alCleanup = () => { A.tap = null; if (LEARN && LEARN.cleanup) LEARN.cleanup(); audio.pause(); midiStop(); cancelAnimationFrame(A.raf); document.removeEventListener("keydown", A.key); window.removeEventListener("resize", resize); window.removeEventListener("resize", padBars); };
+  window.__alCleanup = () => { A.tap = null; window.__alDirty = false; if (LEARN && LEARN.cleanup) LEARN.cleanup(); audio.pause(); midiStop(); cancelAnimationFrame(A.raf); document.removeEventListener("keydown", A.key); window.removeEventListener("resize", resize); window.removeEventListener("resize", padBars); };
   window.addEventListener("resize", resize);
   window.addEventListener("resize", padBars);
   Object.assign(A, { clearPick, stopAll, playRange, markBar, paintPick, liveBus, midiNotes, showBar: i => { const prev = A.cur; if (i !== A.cur) { A.cur = i; markBar(prev); } } });
