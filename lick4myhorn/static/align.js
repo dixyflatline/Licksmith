@@ -34,7 +34,7 @@ async function alignOpen(work, usable, opts = {}) {
         <span class="al-btns al-tl-only" title="Move every bar line together, earlier or later, by the step in the box (Alt ← → does the same; add Shift for 5 steps)"><button id="alNudgeL">◀</button><select id="alNudgeStep" title="How far each press moves all the bar lines">
           <option value="10">10 ms</option><option value="25" selected>25 ms</option><option value="50">50 ms</option><option value="100">100 ms</option>
           <option value="q">¼ beat</option><option value="beat">1 beat</option></select><button id="alNudgeR">▶</button></span>
-        <button class="al-tl-only" id="alTap" title="Play the recording and press Enter on beat 1 of every bar: each press sets that bar line. It starts at the first selected bar, or the bar under the cursor. Backspace undoes a tap, Space or Esc finishes.">● Tap bar lines</button>
+        <button class="al-tl-only" id="alTap" title="Play the recording and press Enter on beat 1 of every bar: each press sets that bar line. It starts at the first selected bar, or the bar under the cursor. Backspace undoes a tap, Space pauses or resumes, Esc finishes.">● Tap bar lines</button>
         <button class="al-tl-only" id="alSetBeat1" title="First drag a bar line onto beat 1. Then press this: every bar line after it moves by the same amount, and the ones before it stay where they are.">Set beat one</button>
         <button id="alUndo" title="Undo (⌘Z)">↶</button><button id="alRedo" title="Redo (⇧⌘Z)">↷</button>
         <button class="al-tl-only" id="alExport">Export MusicXML</button>
@@ -386,11 +386,12 @@ async function alignOpen(work, usable, opts = {}) {
     A.times = k.orig.map((x, j) => j < k.s ? x : j < k.s + k.taps.length ? k.taps[j - k.s] : Math.min(x + delta, dur() - 0.31 * (n - j)));
     draw();
   };
-  const tapPrompt = () => { const k = A.tap; msg(`Tapping: press Enter on beat 1 of bar ${k.s + k.taps.length + 1}. Backspace undoes a tap · Space or Esc finishes.`); };
+  const tapPrompt = () => { const k = A.tap; msg(`Tapping: press Enter on beat 1 of bar ${k.s + k.taps.length + 1}. Backspace undoes a tap · Space pauses or resumes · Esc finishes.`); };
   function tapStart() {
     if (A.tap) { tapEnd(); return; }
     const s = A.pick ? A.pick.a - 1 : Math.max(0, curBar(audio.currentTime));
     A.tap = { s, orig: A.times.slice(), taps: [] };
+    A.stopAt = null;   // a stop time left over from playing a bar or selection must not cut the tapping short
     const b = $("#alTap"); b.classList.add("primary"); b.textContent = "■ Stop tapping"; b.blur();
     if (!A.playing) toggle("audio");   // plays from the cursor
     tapPrompt();
@@ -401,20 +402,20 @@ async function alignOpen(work, usable, opts = {}) {
     const prev = idx > 0 ? A.times[idx - 1] : 0;
     if (t < prev + 0.31) { msg("Too close to the previous bar line: ignored.", true); return; }
     k.taps.push(t); tapLines(); tapPrompt();
-    if (k.s + k.taps.length > n) tapEnd();   // that was the last bar line
+    if (k.s + k.taps.length > n) tapEnd(true);   // that was the last bar line: the music keeps playing
   }
   function tapUndo() {
     const k = A.tap; if (!k.taps.length) return;
     k.taps.pop(); tapLines(); tapPrompt();
   }
-  async function tapEnd() {
+  async function tapEnd(keepPlaying) {
     const k = A.tap; if (!k) return;
     A.tap = null;
     const b = $("#alTap"); if (b) { b.classList.remove("primary"); b.textContent = "● Tap bar lines"; }
-    stopAll();
+    if (!keepPlaying) stopAll();
     if (!k.taps.length) { A.times = k.orig; draw(); msg("No taps: the bar lines are unchanged."); return; }
     await pushTimes();
-    msg(`Set ${k.taps.length} bar line${k.taps.length === 1 ? "" : "s"} from bar ${k.s + 1}; every later line moved along with them. Use ◀ ▶ to nudge if you tapped a little late.`);
+    msg(`Set ${k.taps.length} bar line${k.taps.length === 1 ? "" : "s"} from bar ${k.s + 1}${k.s + k.taps.length > k.orig.length - 1 ? ` (that was the last bar of this song's form, ${k.orig.length - 1} bars)` : ""}; every later line moved along with them. Use ◀ ▶ to nudge if you tapped a little late.`);
   }
   $("#alTap").onclick = tapStart;
 
@@ -467,7 +468,8 @@ async function alignOpen(work, usable, opts = {}) {
     if (A.tap) {   // tap mode owns Enter, Backspace, Space and Esc
       if (k === "Enter") { e.preventDefault(); if (!e.repeat) tapHit(); return; }
       if (k === "Backspace") { e.preventDefault(); tapUndo(); return; }
-      if (k === "Escape" || e.code === "Space") { e.preventDefault(); tapEnd(); return; }
+      if (e.code === "Space") { e.preventDefault(); toggle("audio"); return; }   // pause / resume, tapping carries on
+      if (k === "Escape") { e.preventDefault(); tapEnd(); return; }
     }
     if (e.code === "Space") { e.preventDefault(); if (LEARN) LEARN.toggle(); else toggle(A.mode || "audio"); return; }
     if (e.altKey && (k === "ArrowLeft" || k === "ArrowRight")) { e.preventDefault(); nudgeAll((k === "ArrowLeft" ? -1 : 1) * nudgeStep() * (e.shiftKey ? 5 : 1)); return; }
