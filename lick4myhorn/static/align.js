@@ -19,7 +19,7 @@ async function alignOpen(work, usable, opts = {}) {
 
   ($("#trWork") || main()).innerHTML = `<div class="${LEARN ? "al-learn" : ""}">
     <h2 style="margin-top:22px">${esc(D.title)}${D.artist ? ` <span class="muted" style="font-weight:400">— ${esc(D.artist)}</span>` : ""}</h2>
-    <p class="sub">${LEARN ? "Tick the bars you want to learn (click the bar next to the ticked ones to add it). They loop, then it is your turn. A bar you edit flips to Human (the person icon) and keeps your version; flip it back to Computer to clear your edits."
+    <p class="sub">${LEARN ? "Select the bars you want to learn: click a bar's header, then the bar next to it to add it (click an end bar again to drop it). Press Play or Space to start the loop. The waveform and square-wave buttons on a card only play it once. A bar you edit flips to Human (the person icon) and keeps your version; flip it back to Computer to clear your edits."
       : `Drag each bar line onto the bass downbeat (Shift-drag moves every later line too). Notes are re-quantized to your bar
       lines. A bar you edit flips to Human (the person icon) and keeps your version; flip it back to Computer to clear your edits.`}</p>
     <div class="card al-sticky" id="alSticky" style="padding:12px">
@@ -475,7 +475,7 @@ async function alignOpen(work, usable, opts = {}) {
   const ICON_COMPUTER = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 20h8M12 16v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
   function barHtml(b) {
     const bad = (b.issues || []).length ? `<div class="al-issue">${esc(b.issues.map(i => i.msg).join("; "))}</div>` : "";
-    return `<div class="al-bar-head" title="${LEARN ? "Tick this bar to learn it. Click the bar next to it to add it, click an end bar again to remove it" : "Tick this bar for the lick. Click the bar next to it to add it (up to 3 in a row), click an end bar again to remove it"}"><b class="al-pick">${b.n}</b><span class="muted small">${b.chorus ? `ch ${b.chorus} - bar ${A.D.chart_offset ? (b.bar_in_chorus - 1 + A.D.chart_offset) % A.D.chart_len + 1 : b.bar_in_chorus}` : ""}</span>
+    return `<div class="al-bar-head" title="${LEARN ? "Select this bar to learn it. Click the bar next to it to add it, click an end bar again to remove it" : "Tick this bar for the lick. Click the bar next to it to add it (up to 3 in a row), click an end bar again to remove it"}"><b class="al-pick">${b.n}</b><span class="muted small">${b.chorus ? `ch ${b.chorus} - bar ${A.D.chart_offset ? (b.bar_in_chorus - 1 + A.D.chart_offset) % A.D.chart_len + 1 : b.bar_in_chorus}` : ""}</span>
         <span class="spacer"></span>
         <span class="al-btns"><button class="al-ga al-ic" aria-label="Play the recording" title="Play this bar (or the whole picked lick): the recording">${ICON_WAVE}</button><button class="al-gm al-ic" aria-label="Play as MIDI" title="Play this bar (or the whole picked lick): your notes as MIDI">${ICON_SQUARE}</button></span>
         <span class="al-sw ${b.locked ? "human" : "computer"}" role="group" aria-label="Who wrote this bar">
@@ -528,8 +528,8 @@ async function alignOpen(work, usable, opts = {}) {
     wireNotes(b, holder);
     // inside a joined selection (2-3 bars picked for a lick) these play the whole lick, otherwise just this bar
     const span = () => (A.pick && A.pick.b > A.pick.a && b.n >= A.pick.a && b.n <= A.pick.b) ? A.pick : { a: b.n, b: b.n };
-    $(".al-ga", el).onclick = () => { const r = span(); if (LEARN) LEARN.playSpan(r, "rec"); else playRange(r.a, r.b, "audio"); };
-    $(".al-gm", el).onclick = () => { const r = span(); if (LEARN) LEARN.playSpan(r, "midi"); else playRange(r.a, r.b, "midi"); };
+    $(".al-ga", el).onclick = () => { const r = span(); if (LEARN) LEARN.playOnce(r, "audio"); else playRange(r.a, r.b, "audio"); };
+    $(".al-gm", el).onclick = () => { const r = span(); if (LEARN) LEARN.playOnce(r, "midi"); else playRange(r.a, r.b, "midi"); };
     const u = $(".al-sw-c", el);
     if (u && b.locked) u.onclick = async () => { await api(`/api/align/${work}/bar/${b.n}/unlock`, { method: "POST", body: {} }); await reload(); };
     const inp = $(".al-abc", el);

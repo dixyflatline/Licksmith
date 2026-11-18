@@ -227,9 +227,6 @@ button.listen { padding: 4px 9px; font-size: 13px; border-color: var(--line); co
 .al-issue { color: var(--again); font-size: 12px; margin-top: 4px; }
 .al-bar.picked { border-color: var(--red); box-shadow: 0 0 0 1px var(--red); }
 .al-pick { color: var(--brass); padding: 0 4px; }
-.al-pick { display: inline-flex; align-items: center; }
-.al-pick::before { content: ""; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin-right: 8px; border: 2px solid var(--brass); border-radius: 6px; font-weight: 700; font-size: 20px; line-height: 1; }
-.al-bar.picked .al-pick::before { content: "\2713"; color: var(--red); border-color: var(--red); background: rgba(210, 35, 27, .16); }
 .al-bar.picked .al-pick { color: var(--text); }
 .al-pick-panel { padding: 10px 14px; margin-bottom: 10px; }
 .mono { font-family: ui-monospace, Menlo, monospace; }

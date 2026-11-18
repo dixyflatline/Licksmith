@@ -13,7 +13,7 @@ VIEWS.learn = async () => {
   }
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem("earSetup")) || {}; } catch (e) { /* none */ }
-  const pref = Object.assign({ work: works[0].work, a: 1, b: 4, speed: 100, source: "rec", listens: 1, turn: true, click: true, countin: false }, saved);
+  const pref = Object.assign({ work: works[0].work, a: 0, b: 0, speed: 100, source: "rec", listens: 1, turn: true, click: true, countin: false }, saved);
   const remember = () => { try { localStorage.setItem("earSetup", JSON.stringify(pref)); } catch (e) { /* storage blocked */ } };
   if (!works.some(w => w.work === pref.work)) pref.work = works[0].work;
 
@@ -68,7 +68,7 @@ VIEWS.learn = async () => {
     const Ar = A;                                      // the song may change while this runs
     try {
       const first = span || Ar.pick;
-      if (!first) { toast("Tick some bars first."); return; }
+      if (!first) { toast("Select some bars first: click a bar's header."); return; }
       A.rate = pref.speed / 100;
       Band.engine.init(); if (Band.engine.ctx.state === "suspended") await Band.engine.ctx.resume();
       let round = 0;
@@ -96,16 +96,21 @@ VIEWS.learn = async () => {
 
   const ctl = {
     toggle: () => { if (running) stop(); else start(null, pref.source); },
-    playSpan: (span, mode) => { start({ a: span.a, b: span.b }, mode); },
+    // the buttons on a card play that bar (or the selected bars) once, at the tempo slider, and never start the loop
+    playOnce: (span, mode) => {
+      stop();
+      A.rate = pref.speed / 100;
+      A.onEnd = () => { A.onEnd = null; A.rate = 1; };
+      A.playRange(span.a, span.b, mode);
+    },
     onPick: p => { if (p) { pref.a = p.a; pref.b = p.b; remember(); } else { pref.a = pref.b = 0; remember(); } },
     cleanup: () => { stop(); unblank(); },
     attach(a) {
       A = a;
       document.removeEventListener("click", blank); document.addEventListener("click", blank);   // cleanup() removes it, and a song change cleans up first
       { const T = A.times, nb = T.length - 1; bpm0 = Math.max(30, nb * A.D.bpb * 60 / Math.max(1, T[nb] - T[0])); }
-      if (pref.work !== A.work) { pref.work = A.work; pref.a = 1; pref.b = Math.min(4, A.D.bars.length); }
-      if (pref.a >= 1) { pref.a = Math.min(pref.a, A.D.bars.length); pref.b = Math.max(pref.a, Math.min(pref.b, A.D.bars.length)); A.pick = { a: pref.a, b: pref.b }; }
-      else A.pick = null;
+      if (pref.work !== A.work) pref.work = A.work;
+      A.pick = null;                                   // nothing is selected until you choose bars
       remember();
       const hasMidi = A.D.bars.some(b => b.notes.some(x => x.midi != null));
       if (!hasMidi && pref.source === "midi") pref.source = "rec";
