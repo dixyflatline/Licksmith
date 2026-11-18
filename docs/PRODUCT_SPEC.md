@@ -167,6 +167,10 @@ A generic `api(path, opts)` helper: JSON in/out; non-2xx responses throw an Erro
 
 ---
 
+### 5.1 By ear tab
+
+`static/ear.js`, `VIEWS.ear`. A song menu (works with audio), a strip of all bars (click one to start a stretch, another to end it, either order; or type "from bar / to bar"), and a transport: Play (space), Sound (recording or MIDI), Speed 40-100% (`audio.playbackRate` with pitch preserved; MIDI note times are scaled), Listen 1-4 times, then an optional **Your turn** (silence of the same length, with soft clicks on the beats when Click is on) and an optional one-bar count-in. It loops until stopped; changing the bars or any option takes effect at the next round. The bar playing is outlined yellow, the chosen stretch is red. Uses only the bar lines (`times`) and notes already saved by the Transcribe tab; it has no transcription, chord, tempo or waveform controls. Setup is remembered in the browser (`earSetup`).
+
 ## 6. Today page
 
 Shows today's session: first **reviews that are due** (most overdue first, capped by `max_reviews`, default 20), then **new licks** (`new_per_day`, default 2; favourites first).
