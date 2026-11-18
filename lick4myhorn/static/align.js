@@ -19,9 +19,9 @@ async function alignOpen(work, usable, opts = {}) {
 
   ($("#trWork") || main()).innerHTML = `<div class="${LEARN ? "al-learn" : ""}">
     <h2 style="margin-top:22px">${esc(D.title)}${D.artist ? ` <span class="muted" style="font-weight:400">— ${esc(D.artist)}</span>` : ""}</h2>
-    <p class="sub">${LEARN ? "Tick the bars you want to learn (click the bar next to the ticked ones to add it). They loop, then it is your turn. A bar you edit is locked and keeps your version."
+    <p class="sub">${LEARN ? "Tick the bars you want to learn (click the bar next to the ticked ones to add it). They loop, then it is your turn. A bar you edit flips to Human (the person icon) and keeps your version; flip it back to Computer to clear your edits."
       : `Drag each bar line onto the bass downbeat (Shift-drag moves every later line too). Notes are re-quantized to your bar
-      lines. A bar you edit is locked and keeps your version.`}</p>
+      lines. A bar you edit flips to Human (the person icon) and keeps your version; flip it back to Computer to clear your edits.`}</p>
     <div class="card al-sticky" id="alSticky" style="padding:12px">
       <div class="row" style="margin-bottom:10px">
         <select id="alWork">${usable.map(w => `<option value="${esc(w.work)}" ${w.work === work ? "selected" : ""}>${esc(w.artist ? w.title + " — " + w.artist : w.title || w.work)}</option>`).join("")}</select>
@@ -467,12 +467,17 @@ async function alignOpen(work, usable, opts = {}) {
     }
     return A.svg.get(key);
   }
+  const ICON_HUMAN = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="7.5" r="4" fill="currentColor"/><path d="M4 21c0-4.4 3.6-7.5 8-7.5s8 3.1 8 7.5z" fill="currentColor"/></svg>`;
+  const ICON_COMPUTER = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 20h8M12 16v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
   function barHtml(b) {
     const bad = (b.issues || []).length ? `<div class="al-issue">${esc(b.issues.map(i => i.msg).join("; "))}</div>` : "";
     return `<div class="al-bar-head" title="${LEARN ? "Tick this bar to learn it. Click the bar next to it to add it, click an end bar again to remove it" : "Tick this bar for the lick. Click the bar next to it to add it (up to 3 in a row), click an end bar again to remove it"}"><b class="al-pick">${b.n}</b><span class="muted small">${b.chorus ? `ch ${b.chorus} · bar ${A.D.chart_offset ? (b.bar_in_chorus - 1 + A.D.chart_offset) % A.D.chart_len + 1 : b.bar_in_chorus}` : ""}</span>
         <span class="spacer"></span>
         <span class="al-btns"><button class="al-ga" title="Play this bar (or the whole picked lick): the recording">A ▶</button><button class="al-gm" title="Play this bar (or the whole picked lick): your notes as MIDI">M ▶</button></span>
-        ${b.locked ? `<span class="al-lockwrap"><svg class="al-lock" viewBox="0 0 24 24" width="15" height="15" role="img" aria-label="Locked: you edited this bar, so it keeps your version"><title>Locked: you edited this bar, so it keeps your version</title><path fill="#f2ba2b" d="M12 1a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V11a2 2 0 0 0-2-2h-1V6a5 5 0 0 0-5-5zm-3 8V6a3 3 0 1 1 6 0v3H9z"/></svg></span><button class="ghost al-unlock" title="Go back to the automatic transcription">auto</button>` : ""}</div>
+        <span class="al-sw ${b.locked ? "human" : "computer"}" role="group" aria-label="Who wrote this bar">
+          <button class="al-sw-h" ${b.locked ? "" : "disabled"} aria-pressed="${!!b.locked}" title="${b.locked ? "Human: you edited this bar, so it keeps your version" : "Computer's transcription. Edit a note and this bar flips to Human."}">${ICON_HUMAN}</button>
+          <button class="al-sw-c" ${b.locked ? "" : "disabled"} aria-pressed="${!b.locked}" title="${b.locked ? "Flip back to Computer: clears your edits to this bar (Undo brings them back)" : "Computer: this bar is the automatic transcription"}">${ICON_COMPUTER}</button>
+        </span></div>
       <div class="paper al-svg"></div>
       <input class="al-abc" spellcheck="false" value="${esc(b.abc)}">${bad}`;
   }
@@ -521,8 +526,8 @@ async function alignOpen(work, usable, opts = {}) {
     const span = () => (A.pick && A.pick.b > A.pick.a && b.n >= A.pick.a && b.n <= A.pick.b) ? A.pick : { a: b.n, b: b.n };
     $(".al-ga", el).onclick = () => { const r = span(); if (LEARN) LEARN.playSpan(r, "rec"); else playRange(r.a, r.b, "audio"); };
     $(".al-gm", el).onclick = () => { const r = span(); if (LEARN) LEARN.playSpan(r, "midi"); else playRange(r.a, r.b, "midi"); };
-    const u = $(".al-unlock", el);
-    if (u) u.onclick = async () => { await api(`/api/align/${work}/bar/${b.n}/unlock`, { method: "POST", body: {} }); await reload(); };
+    const u = $(".al-sw-c", el);
+    if (u && b.locked) u.onclick = async () => { await api(`/api/align/${work}/bar/${b.n}/unlock`, { method: "POST", body: {} }); await reload(); };
     const inp = $(".al-abc", el);
     const save = async () => {
       if (inp.value.trim() === b.abc.trim()) return;

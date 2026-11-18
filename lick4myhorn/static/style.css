@@ -409,5 +409,10 @@ img, svg, canvas { max-width: 100%; }
 .ea-gold { color: var(--brass); border-color: var(--brass-dim); }
 .ea-gold:hover:not(:disabled) { border-color: var(--brass); background: rgba(242, 186, 43, .12); }
 .ea-gold:disabled { opacity: .45; }
-.al-lockwrap { display: inline-flex; align-items: center; vertical-align: middle; }
-.al-unlock { padding: 1px 6px; font-size: 12px; }
+/* Human / Computer flip switch on each bar card: gold side = who wrote the bar; flipping to Computer clears the edits */
+.al-sw { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.al-sw button { border: 0; border-radius: 0; background: transparent; color: var(--muted); padding: 3px 8px; min-height: 0; display: inline-flex; align-items: center; opacity: 1; }
+.al-sw button:disabled { cursor: default; }
+.al-sw.human { border-color: var(--brass-dim); }
+.al-sw.human .al-sw-h, .al-sw.computer .al-sw-c { background: var(--brass); color: #1a1a1a; }
+.al-sw.human .al-sw-c:hover { background: rgba(242, 186, 43, .2); color: var(--brass); }
