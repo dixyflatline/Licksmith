@@ -34,7 +34,7 @@ async function alignOpen(work, usable, opts = {}) {
         <span class="al-btns al-tl-only" title="Move every bar line together, earlier or later, by the step in the box (Alt ← → does the same; add Shift for 5 steps)"><button id="alNudgeL">◀</button><select id="alNudgeStep" title="How far each press moves all the bar lines">
           <option value="10">10 ms</option><option value="25" selected>25 ms</option><option value="50">50 ms</option><option value="100">100 ms</option>
           <option value="q">¼ beat</option><option value="beat">1 beat</option></select><button id="alNudgeR">▶</button></span>
-        <button class="al-tl-only" id="alTap" title="Play the recording and press Enter on beat 1 of every bar: each press sets that bar line. It starts at the first selected bar, or the bar under the cursor. Backspace undoes a tap, Space pauses or resumes, Esc finishes.">● Tap bar lines</button>
+        <button class="al-tl-only" id="alTap" title="Play the recording and press Enter on beat 1 of every bar, from before the solo if you like. When you finish you say which tap is bar 1 of the form. Backspace undoes a tap, Space pauses or resumes, Esc finishes.">● Tap bar lines</button>
         <button class="al-tl-only" id="alSetBeat1" title="First drag a bar line onto beat 1. Then press this: every bar line after it moves by the same amount, and the ones before it stay where they are.">Set beat one</button>
         <button id="alUndo" title="Undo (⌘Z)">↶</button><button id="alRedo" title="Redo (⇧⌘Z)">↷</button>
         <button class="al-tl-only" id="alExport">Export MusicXML</button>
@@ -42,11 +42,12 @@ async function alignOpen(work, usable, opts = {}) {
         <span id="alMsg" class="small muted"></span>
       </div>
       <div id="alLearn"></div>
+      <div id="alTapPanel" class="al-tl-only" style="display:none;margin-top:8px"></div>
       <div id="alTl" class="al-tl al-tl-only"><div id="alSpacer"></div><canvas id="alCanvas"></canvas></div>
       <div class="small muted al-tl-only" style="margin-top:6px">
         <span style="color:#d9a441">■</span> horn notes &nbsp; <span style="color:#5a9bd0">■</span> bass notes &nbsp;
         Click a note on the timeline to hear it · click elsewhere to seek · Space = play/stop · Ctrl/⌘-scroll = zoom ·
-        drag a bar line onto beat 1, then "Set beat one" moves every later line with it (Shift-drag does it while dragging) · <b>● Tap bar lines</b>: play, then press Enter on beat 1 of every bar · ◀ ▶ or Alt ← → move all the lines</div>
+        drag a bar line onto beat 1, then "Set beat one" moves every later line with it (Shift-drag does it while dragging) · <b>● Tap bar lines</b>: play, press Enter on beat 1 of every bar, then say which tap starts the form · ◀ ▶ or Alt ← → move all the lines</div>
       <div id="alPick" class="al-pick-row al-tl-only"></div>
     </div>
     <h2>Bars</h2>
@@ -180,6 +181,22 @@ async function alignOpen(work, usable, opts = {}) {
         ctx.fillText(String(i + 1), x + 4, H.ruler / 2);
       }
     });
+    // tapped lines outside the form (and, while tapping or choosing bar 1, all the taps): dashed blue, numbered
+    {
+      const P = A.tapPending, ex = P ? { lines: P.taps, start: P.start } : A.tap ? { lines: A.tap.taps, start: -1 } : A.D.tap_lines ? { lines: A.D.tap_lines, start: A.D.tap_start || 0 } : null;
+      if (ex) {
+        ctx.save(); ctx.setLineDash([4, 3]); ctx.font = "10px system-ui";
+        ex.lines.forEach((t, i) => {
+          const inForm = ex.start >= 0 && i >= ex.start && i <= ex.start + A.D.n;
+          if (inForm && !P) return;   // already drawn as the form's own bar lines
+          const x = t2x(t); if (x < -40 || x > W + 40) return;
+          ctx.strokeStyle = inForm ? "#f2ba2b" : "#6fa8ff"; ctx.lineWidth = inForm ? 2 : 1;
+          ctx.beginPath(); ctx.moveTo(x + .5, H.ruler); ctx.lineTo(x + .5, HT); ctx.stroke();
+          ctx.fillStyle = inForm ? "#f2ba2b" : "#6fa8ff"; ctx.fillText(`t${i + 1}`, x + 3, HT - 8);
+        });
+        ctx.restore();
+      }
+    }
     // cursor
     const cx = t2x(audio.currentTime);
     ctx.strokeStyle = "#ff5d5d"; ctx.lineWidth = 1.5;
@@ -374,48 +391,71 @@ async function alignOpen(work, usable, opts = {}) {
     const from = audio.currentTime;
     audio.play().then(() => { A.playing = true; if (mode === "midi") midiStart(from); setButtons(); loop(); }).catch(e => msg(e.message, true));
   }
-  audio.addEventListener("ended", () => { midiStop(); A.playing = false; setButtons(); if (A.onEnd) A.onEnd(); });
+  audio.addEventListener("ended", () => { midiStop(); A.playing = false; setButtons(); if (A.tap) tapEnd(true); if (A.onEnd) A.onEnd(); });
   $("#alPlay").onclick = () => toggle("audio");
   $("#alMidi").onclick = () => toggle("midi");
 
   // ------------------------------------------------------------------ tap bar lines
-  // Play the recording and press Enter on beat 1 of each bar. The first tap sets the bar line of the first selected bar (or the bar
-  // under the cursor), the next tap the following line, and so on. Lines after the last tap move along with it, as with "Set beat one".
-  const tapLines = () => {
-    const k = A.tap, n = k.orig.length - 1, delta = k.taps.length ? k.taps[k.taps.length - 1] - k.orig[k.s + k.taps.length - 1] : 0;
-    A.times = k.orig.map((x, j) => j < k.s ? x : j < k.s + k.taps.length ? k.taps[j - k.s] : Math.min(x + delta, dur() - 0.31 * (n - j)));
-    draw();
-  };
-  const tapPrompt = () => { const k = A.tap; msg(`Tapping: press Enter on beat 1 of bar ${k.s + k.taps.length + 1}. Backspace undoes a tap · Space pauses or resumes · Esc finishes.`); };
+  // Play the recording and press Enter on beat 1 of every bar, from wherever you like: before the solo to find the groove, through
+  // someone else's solo, and so on. The taps are independent of the form. When you finish you say which tap is bar 1 of the form
+  // (the first bar of the solo); the form's bar lines are then the taps from there on. All the taps are kept, so the lines outside
+  // the form stay on the timeline (dashed) for later.
+  const tapTotal = () => (A.tap || A.tapPending || {}).taps.length;
+  const tapPrompt = () => msg(`Tapping from the cursor: press Enter on beat 1 of every bar (${tapTotal()} so far). Backspace undoes a tap · Space pauses or resumes · Esc finishes.`);
   function tapStart() {
     if (A.tap) { tapEnd(); return; }
-    const s = A.pick ? A.pick.a - 1 : Math.max(0, curBar(audio.currentTime));
-    A.tap = { s, orig: A.times.slice(), taps: [] };
+    A.tapPending = null; tapPanel();
+    A.tap = { taps: [] };
     A.stopAt = null;   // a stop time left over from playing a bar or selection must not cut the tapping short
     const b = $("#alTap"); b.classList.add("primary"); b.textContent = "■ Stop tapping"; b.blur();
     if (!A.playing) toggle("audio");   // plays from the cursor
-    tapPrompt();
+    tapPrompt(); draw();
   }
   function tapHit() {
-    const k = A.tap, t = audio.currentTime, idx = k.s + k.taps.length, n = k.orig.length - 1;
-    if (idx > n) { tapEnd(); return; }
-    const prev = idx > 0 ? A.times[idx - 1] : 0;
-    if (t < prev + 0.31) { msg("Too close to the previous bar line: ignored.", true); return; }
-    k.taps.push(t); tapLines(); tapPrompt();
-    if (k.s + k.taps.length > n) tapEnd(true);   // that was the last bar line: the music keeps playing
+    const k = A.tap, t = audio.currentTime, last = k.taps.length ? k.taps[k.taps.length - 1] : -1;
+    if (t < last + 0.31) { msg("Too close to the previous tap: ignored.", true); return; }
+    k.taps.push(t); tapPrompt(); draw();
   }
-  function tapUndo() {
-    const k = A.tap; if (!k.taps.length) return;
-    k.taps.pop(); tapLines(); tapPrompt();
-  }
-  async function tapEnd(keepPlaying) {
+  function tapUndo() { const k = A.tap; if (!k.taps.length) return; k.taps.pop(); tapPrompt(); draw(); }
+  function tapEnd(keepPlaying) {
     const k = A.tap; if (!k) return;
     A.tap = null;
     const b = $("#alTap"); if (b) { b.classList.remove("primary"); b.textContent = "● Tap bar lines"; }
     if (!keepPlaying) stopAll();
-    if (!k.taps.length) { A.times = k.orig; draw(); msg("No taps: the bar lines are unchanged."); return; }
-    await pushTimes();
-    msg(`Set ${k.taps.length} bar line${k.taps.length === 1 ? "" : "s"} from bar ${k.s + 1}${k.s + k.taps.length > k.orig.length - 1 ? ` (that was the last bar of this song's form, ${k.orig.length - 1} bars)` : ""}; every later line moved along with them. Use ◀ ▶ to nudge if you tapped a little late.`);
+    if (k.taps.length < 2) { msg(k.taps.length ? "Tap at least two bar lines: nothing changed." : "No taps: the bar lines are unchanged."); draw(); return; }
+    // the tap nearest the current first bar line is the best guess for bar 1 of the form
+    let start = 0, bd = Infinity;
+    k.taps.slice(0, -1).forEach((t, i) => { const d = Math.abs(t - A.times[0]); if (d < bd) { bd = d; start = i; } });
+    A.tapPending = { taps: k.taps, start };
+    tapPanel(); draw(); msg("");
+  }
+  const fmtT = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
+  function tapPanel() {
+    const el = $("#alTapPanel"); if (!el) return;
+    const p = A.tapPending;
+    if (!p) { el.style.display = "none"; el.innerHTML = ""; return; }
+    const N = p.taps.length, n = A.D.n;
+    el.style.display = "";
+    el.innerHTML = `<div class="small"><b>You tapped ${N} bar lines</b> (${fmtT(p.taps[0])} to ${fmtT(p.taps[N - 1])}).
+      Bar 1 of this song's form, the first bar of the solo, is tap # <input id="alTapStart" type="number" min="1" max="${N - 1}" value="${p.start + 1}" style="width:64px">.
+      <span id="alTapNote" class="muted"></span>
+      <button class="primary" id="alTapApply">Apply</button> <button class="ghost" id="alTapCancel">Cancel</button></div>`;
+    const note = () => {
+      const have = N - p.start - 1;   // bars after the chosen tap
+      $("#alTapNote").textContent = have >= n ? `The ${n} bars of the form are taps ${p.start + 1} to ${p.start + n + 1}.`
+        : `You tapped ${have} bar${have === 1 ? "" : "s"} from there, the form has ${n}: the rest continue at the last bar length. Tap on to the end of the solo for exact lines.`;
+    };
+    note();
+    $("#alTapStart").oninput = e => { p.start = Math.max(0, Math.min(N - 2, (+e.target.value || 1) - 1)); note(); draw(); };
+    $("#alTapCancel").onclick = () => { A.tapPending = null; tapPanel(); draw(); msg("Tapping cancelled: the bar lines are unchanged."); };
+    $("#alTapApply").onclick = async () => {
+      msg("Re-quantizing…");
+      try {
+        const r = await api(`/api/align/${work}/tap-lines`, { method: "PUT", body: { lines: p.taps, start: p.start } });
+        A.D = r; A.times = r.times.slice(); A.tapPending = null; tapPanel(); renderBars(); draw();
+        msg(`Bar 1 is tap ${p.start + 1}; ${N} tapped lines kept. ↶ Undo restores the old lines. Use ◀ ▶ to nudge if you tapped a little late.`);
+      } catch (err) { msg(err.message, true); }
+    };
   }
   $("#alTap").onclick = tapStart;
 

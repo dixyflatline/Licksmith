@@ -212,6 +212,12 @@ def create_app(root: Path) -> FastAPI:
         _guard(w.set_times, body["times"])
         return w.summary()
 
+    @app.put("/api/align/{work}/tap-lines")
+    async def align_tap_lines(work: str, body: dict = Body(...)):
+        w = _aw(work)
+        _guard(w.set_tap_lines, body["lines"], body.get("start", 0))
+        return w.summary()
+
     @app.post("/api/align/{work}/snap")
     async def align_snap(work: str):
         w = _aw(work)

@@ -95,10 +95,12 @@ class AlignWork:
         st.setdefault("bars", {})
         if len(st.get("bar_times") or []) != self.n + 1:
             st["bar_times"] = self._initial_times()
+            st.pop("tap_lines", None); st.pop("tap_start", None)
         return st
 
     def _snap(self) -> dict:
-        return json.loads(json.dumps({"bar_times": self.state["bar_times"], "bars": self.state["bars"]}))
+        return json.loads(json.dumps({"bar_times": self.state["bar_times"], "bars": self.state["bars"],
+                                      "tap_lines": self.state.get("tap_lines"), "tap_start": self.state.get("tap_start")}))
 
     def _push(self) -> None:
         """Remember the bar lines and your bar edits before a change (⌘Z)."""
@@ -203,6 +205,31 @@ class AlignWork:
             raise ValueError("Bar lines must stay in order and at least 0.3 s apart")
         self._push()
         self.state["bar_times"] = [round(x, 4) for x in t]
+        tl, st = self.state.get("tap_lines"), self.state.get("tap_start", 0)
+        if tl and st + len(t) <= len(tl):   # the bar lines of the form are a window onto the tapped lines: keep them in step
+            tl[st:st + len(t)] = self.state["bar_times"]
+        self._auto_cache = None
+        self.save()
+
+    def set_tap_lines(self, lines: list[float], start: int) -> None:
+        """Downbeats tapped over the whole recording, whatever the form: `start` says which of them is bar 1 of the form.
+        The form's n + 1 bar lines are the window of tapped lines from `start`; if fewer were tapped, the window is
+        carried on with the last bar length."""
+        t = [round(float(x), 4) for x in lines]
+        if len(t) < 2:
+            raise ValueError("Tap at least two bar lines")
+        if any(b - a < 0.3 for a, b in zip(t, t[1:])):
+            raise ValueError("Bar lines must stay in order and at least 0.3 s apart")
+        start = int(start)
+        if not 0 <= start < len(t) - 1:
+            raise ValueError(f"Bar 1 must be one of the first {len(t) - 1} tapped lines")
+        win = t[start:start + self.n + 1]
+        step = win[-1] - win[-2]
+        while len(win) < self.n + 1:
+            win.append(round(win[-1] + step, 4))
+        self._push()
+        self.state["tap_lines"], self.state["tap_start"] = t, start
+        self.state["bar_times"] = win
         self._auto_cache = None
         self.save()
 
@@ -407,6 +434,7 @@ class AlignWork:
                 "first_downbeat": float((self.form.data.get("grid") or {}).get("first_downbeat", 0.0)),
                 "engine": self.state.get("engine"), "engines": self.engines(),
                 "times": self.state["bar_times"], "bars": self.bars_view(),
+                "tap_lines": self.state.get("tap_lines"), "tap_start": self.state.get("tap_start", 0),
                 "horn": [[round(n["onset"], 3), round(n["offset"], 3), n["pitch"]] for n in horn],
                 "bass": [[round(n["onset"], 3), round(n["offset"], 3), n["pitch"]] for n in bass],
                 "written_shift": _WRITTEN_SEMIS.get(self.instrument, 0)}
