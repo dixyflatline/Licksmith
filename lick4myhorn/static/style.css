@@ -406,3 +406,6 @@ img, svg, canvas { max-width: 100%; }
 .al-learn .al-tl-only { display: none !important; }
 .ea-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
 .ea-bar .phase { min-width: 170px; }
+.ea-gold { color: var(--brass); border-color: var(--brass-dim); }
+.ea-gold:hover:not(:disabled) { border-color: var(--brass); background: rgba(242, 186, 43, .12); }
+.ea-gold:disabled { opacity: .45; }

@@ -112,17 +112,31 @@ VIEWS.learn = async () => {
       remember();
       const hasMidi = A.D.bars.some(b => b.notes.some(x => x.midi != null));
       if (!hasMidi && pref.source === "midi") pref.source = "rec";
-      $("#alLearn").innerHTML = `<div class="ea-bar">
-        <button class="primary play-btn" id="eaPlay" title="Play / stop (space)">▶</button>
-        <div class="phase" id="eaPhase">Ready</div>
-        <label class="check">Sound <select id="eaSource"><option value="rec">Recording</option><option value="midi" ${hasMidi ? "" : "disabled"}>MIDI</option></select></label>
-        <label class="check" title="Drag to set the tempo. It slows the recording (pitch unchanged), and sets the clicks and the length of your turn.">Tempo <input type="range" id="eaTempo" min="${Math.round(bpm0 * 0.3)}" max="${Math.round(bpm0 * 1.2)}" step="1" style="width:150px"> <b id="eaBpm" style="min-width:64px;display:inline-block">♩ = ${Math.round(curBpm())}</b></label>
-        <label class="check">Listen <select id="eaListens">${[1, 2, 3, 4].map(v => `<option>${v}</option>`).join("")}</select> ×</label>
-        <button id="eaClear" class="ghost" title="Untick all bars (clicking the empty space beside the cards does the same)">Clear selection</button>
-        <label class="check"><input type="checkbox" id="eaTurn"> Your turn</label>
-        <label class="check" title="A soft click on the beats while it is your turn"><input type="checkbox" id="eaClick"> Click</label>
-        <label class="check" title="One bar of clicks at the tempo, right before each of your turns"><input type="checkbox" id="eaCountin"> Count-in</label>
-      </div>`;
+      $("#alLearn").innerHTML = `
+        <div class="ea-bar" id="eaRow1">
+          <span id="eaSong"></span>
+          <label class="check">Sound <select id="eaSource"><option value="rec">Recording</option><option value="midi" ${hasMidi ? "" : "disabled"}>MIDI</option></select></label>
+          <label class="check">Listen <select id="eaListens">${[1, 2, 3, 4].map(v => `<option>${v}</option>`).join("")}</select> ×</label>
+          <label class="check"><input type="checkbox" id="eaTurn"> Your turn</label>
+          <label class="check" title="A soft click on the beats while it is your turn"><input type="checkbox" id="eaClick"> Click</label>
+          <label class="check" title="One bar of clicks at the tempo, right before each of your turns"><input type="checkbox" id="eaCountin"> Count-in</label>
+        </div>
+        <div class="ea-bar" id="eaRow2" style="margin-top:10px">
+          <button class="primary play-btn" id="eaPlay" title="Play / stop (space)">▶</button>
+          <label class="check" title="Drag to set the tempo. It slows the recording (pitch unchanged), and sets the clicks and the length of your turn.">Tempo <input type="range" id="eaTempo" min="${Math.round(bpm0 * 0.3)}" max="${Math.round(bpm0 * 1.2)}" step="1" style="width:150px"> <b id="eaBpm" style="min-width:64px;display:inline-block">♩ = ${Math.round(curBpm())}</b></label>
+          <button id="eaClear" class="ea-gold" title="Untick all bars (clicking the empty space beside the cards does the same)">Clear selection</button>
+          <span id="eaEdit" class="al-btns"></span>
+          <div class="phase" id="eaPhase">Ready</div>
+        </div>`;
+      // reuse the editor's own song menu, undo/redo and message (they keep their handlers), arranged into the two rows
+      const sticky = $("#alSticky"), oldRow = $(".row", sticky);
+      $("#eaSong").appendChild($("#alWork"));
+      const edit = $("#eaEdit");
+      const undo = $("#alUndo"), redo = $("#alRedo");
+      undo.textContent = "↶ Undo"; redo.textContent = "↷ Redo";
+      [undo, redo].forEach(b => { b.classList.add("ea-gold"); edit.appendChild(b); });
+      edit.appendChild($("#alMsg"));
+      oldRow.style.display = "none";
       $("#eaSource").value = pref.source; $("#eaTempo").value = Math.round(curBpm()); $("#eaListens").value = pref.listens;
       $("#eaTurn").checked = pref.turn; $("#eaClick").checked = pref.click; $("#eaCountin").checked = pref.countin;
       const bind = (id, key, get) => $("#" + id).addEventListener("change", () => { pref[key] = get($("#" + id)); remember(); });
