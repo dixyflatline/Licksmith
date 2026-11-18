@@ -104,7 +104,7 @@ async function go(tab) {
   if (tab === "align") tab = "transcribe";  // the page used to be called Align
   if (tab === "today") tab = "licks";        // the Today tab is now called Licks
   if (tab === "tunes") tab = "play";         // the Tunes tab is now called Play
-  if (S.tab === "transcribe" && tab !== "transcribe" && window.__alCleanup) window.__alCleanup();
+  if ((S.tab === "transcribe" || S.tab === "learn") && tab !== S.tab && window.__alCleanup) window.__alCleanup();
   if (tab !== "practice" && Band.sequencer.running) Band.sequencer.stop(true);
   S.tab = tab;
   $$("nav.tabs a").forEach(a => a.classList.toggle("active", a.dataset.tab === tab));

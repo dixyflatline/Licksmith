@@ -68,9 +68,10 @@ VIEWS.transcribe = async () => {
 
   // ---------------------------------------------------------------- saved transcriptions (library/works): open or delete
   async function drawDisk() {
-    const body = $("#trDiskBody"); if (!body) return;
+    const body = $("#trDiskBody"); if (!body) return;   // the page may have changed while this was loading
     let list = [];
     try { list = await api("/api/works/disk"); } catch (e) { body.textContent = e.message; return; }
+    if (!$("#trDiskSub") || !$("#trDiskBody")) return;
     $("#trDiskSub").textContent = `${list.length} folder${list.length === 1 ? "" : "s"}, ${Math.round(list.reduce((n, w) => n + w.mb, 0))} MB`;
     const when = t => new Date(t * 1000).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
     const byName = Object.fromEntries(list.map(w => [w.work, w]));

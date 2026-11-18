@@ -183,7 +183,7 @@ async function alignOpen(work, usable, opts = {}) {
     const cx = t2x(audio.currentTime);
     ctx.strokeStyle = "#ff5d5d"; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, HT); ctx.stroke();
-    $("#alTime").textContent = `${audio.currentTime.toFixed(2)} s` + (A.cur >= 0 && A.cur != null ? ` · bar ${A.cur + 1}` : "");
+    if ($("#alTime")) $("#alTime").textContent = `${audio.currentTime.toFixed(2)} s` + (A.cur >= 0 && A.cur != null ? ` · bar ${A.cur + 1}` : "");
   }
 
   // ------------------------------------------------------------------ bar lines
@@ -352,8 +352,9 @@ async function alignOpen(work, usable, opts = {}) {
     pump(); sched.timer = setInterval(pump, 250);
   }
   function setButtons() {
-    $("#alPlay").textContent = A.playing && A.mode === "audio" ? "A ⏸" : "A ▶";
-    $("#alMidi").textContent = A.playing && A.mode === "midi" ? "M ⏸" : "M ▶";
+    const pa = $("#alPlay"), pm = $("#alMidi");   // gone when the page was replaced while a cleanup stops the player
+    if (pa) pa.textContent = A.playing && A.mode === "audio" ? "A ⏸" : "A ▶";
+    if (pm) pm.textContent = A.playing && A.mode === "midi" ? "M ⏸" : "M ▶";
   }
   function stopAll() { audio.pause(); midiStop(); A.playing = false; setButtons(); tickUi(); }
   // Play bars a..b once, from the recording ("audio") or from your notes ("midi"), then stop.
