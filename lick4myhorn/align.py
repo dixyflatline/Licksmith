@@ -507,10 +507,13 @@ class AlignWork:
     # ------------------------------------------------------------------ chords from an iReal chart
     def _bass_by_bar(self) -> list[dict]:
         """Per bar: the bass pitch classes heard on beat 1 (weight 1) and beat 3 (weight .5), from your bar lines."""
+        return self._bass_for_lines(self.state["bar_times"])
+
+    def _bass_for_lines(self, T: list[float]) -> list[dict]:
+        """The same for any list of bar lines (for example every line you tapped), one entry per bar."""
         _, bass = self.notes()
-        T = self.state["bar_times"]
         out = []
-        for i in range(self.n):
+        for i in range(len(T) - 1):
             beat = (T[i + 1] - T[i]) / self.bpb
             pcs: dict[int, float] = {}
             for n in bass:
@@ -583,6 +586,138 @@ class AlignWork:
                 "confident": out[0]["score"] >= 0.45 and gap > 0.04,  # the bass only decides when one reading clearly stands out
                 "counted": sum(1 for x in bass if x),
                 "chorus_len": len(self.form.data["chorus"])}
+
+    def find_choruses(self, title: str, charts_json: Path, lines: list[float]) -> dict:
+        """Where do the chart's choruses start in the bars you tapped? The bass of every tapped bar is compared with the chart's
+        chords, in all 12 keys, by a Viterbi pass that follows the chart bar by bar and tolerates what recordings do: a bar
+        that does not match, an extra or a missing bar, a tag of extra bars on the last chord after the chart ends, and stretches
+        that are not the tune at all (other players, intros). The chart is a good bet for the main progression, not a promise."""
+        chart = _chart(title, charts_json)
+        bars = chart["bars"]
+        L_ = len(bars)
+        t = [float(x) for x in lines]
+        if len(t) < 3:
+            raise ValueError("Tap at least a few bar lines first")
+        bass = self._bass_for_lines(t)
+        if not any(bass):
+            raise ValueError("No bass notes to compare with (this transcription has no bass track)")
+        M = len(bass)
+        flats = _prefers_flats_key(self.form.data.get("key"))
+        base_pc, target_pc = _key_pc(chart.get("key")), _key_pc(self.form.data.get("key"))
+        exp = (target_pc - base_pc) % 12 if base_pc is not None and target_pc is not None else None
+
+        def ok(w, roots):
+            if not w:
+                return None
+            top = max(w, key=w.get)
+            return top in roots or sum(w.get(r, 0) for r in roots) >= 0.4 * sum(w.values())
+
+        NEG = -1e9
+        TAG, OUT = L_, L_ + 1
+        best = None
+        for tr in range(12):
+            tb = [[_transpose_plain(c, tr, flats) for c in bar] for bar in bars]
+            roots = [{pc for c in chords for pc in _chord_root_pcs(c)} for chords in tb]
+            hit = [[ok(bass[i], roots[p]) for p in range(L_)] + [ok(bass[i], roots[L_ - 1]), None] for i in range(M)]
+
+            def emit(i, st):
+                h = hit[i][st]
+                if st == OUT:
+                    return 0.5
+                if h is None:
+                    return 0.5   # no bass heard: neither for nor against
+                return (0.9 if st == TAG else 1.0) if h else 0.0
+            V = [[NEG] * (L_ + 2) for _ in range(M)]
+            B = [[-1] * (L_ + 2) for _ in range(M)]
+            V[0][OUT], V[0][0] = emit(0, OUT), emit(0, 0)
+            for i in range(1, M):
+                prev = V[i - 1]
+                for st in range(L_ + 2):
+                    cands = []
+                    if st == 0:
+                        cands = [(OUT, 0), (L_ - 1, 0), (TAG, 0)]
+                    elif st < L_:
+                        cands = [(st - 1, 0), (st, -0.6)] + ([(st - 2, -0.6)] if st >= 2 else [])
+                    elif st == TAG:
+                        cands = [(L_ - 1, 0), (TAG, 0)]
+                    else:
+                        cands = [(OUT, 0), (L_ - 1, 0), (TAG, 0)] + [(p, -0.8) for p in range(L_ - 1)]
+                    bs, bp = NEG, -1
+                    for ps, pen in cands:
+                        v = prev[ps] + pen
+                        if v > bs:
+                            bs, bp = v, ps
+                    if bp >= 0 and bs > NEG / 2:
+                        V[i][st] = bs + emit(i, st)
+                        B[i][st] = bp
+            end = max(range(L_ + 2), key=lambda x: V[M - 1][x])
+            total = V[M - 1][end]
+            key = (total, tr == exp)
+            if best is None or key > best[0]:
+                path = [end]
+                for i in range(M - 1, 0, -1):
+                    path.append(B[i][path[-1]])
+                best = (key, tr, path[::-1], hit)
+        (total, _), tr, path, hit = best
+        choruses, cur, prev = [], None, None
+        for i, st in enumerate(path):
+            if st == OUT:
+                if cur:
+                    choruses.append(cur); cur = None
+            elif st == 0 and prev != 0:
+                if cur:
+                    choruses.append(cur)
+                cur = {"start": i + 1, "end": i + 1, "chart": 0, "tag": 0, "hits": 0, "counted": 0}
+            if cur is not None and st != OUT:
+                cur["end"] = i + 1
+                cur["tag" if st == TAG else "chart"] += 1
+                if hit[i][st] is not None:
+                    cur["counted"] += 1
+                    cur["hits"] += bool(hit[i][st])
+            prev = st
+        if cur:
+            choruses.append(cur)
+        out = [{"n": k + 1, "start": c["start"], "end": c["end"], "bars": c["end"] - c["start"] + 1, "chart": c["chart"], "tag": c["tag"],
+                "score": round(c["hits"] / c["counted"], 2) if c["counted"] else None, "complete": c["chart"] >= L_ - 2}
+               for k, c in enumerate(choruses) if c["chart"] >= 4]
+        tags = sorted(c["tag"] for c in out if c["complete"])
+        return {"title": chart["title"], "chart_bars": L_, "transpose": tr, "key": _name_pc((base_pc + tr) % 12, flats) if base_pc is not None else None,
+                "expected": exp is not None and tr == exp, "tapped_bars": M, "choruses": out,
+                "tag": tags[len(tags) // 2] if tags else 0}
+
+    def apply_choruses(self, title: str, charts_json: Path, transpose: int, lines: list[float], start: int, count: int, tag: int) -> None:
+        """Make the form `count` choruses of the chart (plus `tag` extra bars of its last chord after each), beginning at the tapped
+        line `start`, and set the bar lines from your taps."""
+        chart = _chart(title, charts_json)
+        bars = chart["bars"]
+        flats = _prefers_flats_key(self.form.data.get("key"))
+        chorus = [[_transpose_plain(c, int(transpose), flats) for c in bar] for bar in bars]
+        chorus += [list(chorus[-1]) for _ in range(max(0, int(tag)))]
+        if not 1 <= int(count) <= 40:
+            raise ValueError("Choruses must be between 1 and 40")
+        path = self.dir / "form.json"
+        data = json.loads(path.read_text())
+        data.setdefault("chorus_before_ireal", data.get("chorus"))
+        data["chorus"] = chorus
+        done = False
+        for sec in data.get("sections", []):
+            if sec.get("transcribe") and not done:
+                for k in ("chords", "bars", "loop_chorus", "repeat_last", "vamp"):
+                    sec.pop(k, None)
+                sec["choruses"] = int(count)
+                done = True
+        if not done:
+            data["sections"] = [{"label": "solo", "choruses": int(count), "transcribe": True}]
+        data["chart_offset"] = 0
+        data["chorus_source"] = f"iReal Pro: {chart['title']} (shifted {int(transpose)} semitones" + (f", plus {int(tag)} tag bars" if int(tag) else "") + "), matched to your bar lines"
+        path.write_text(json.dumps(data, indent=2))
+        self.form = load_form(path, None)
+        self.free = False
+        self.bars = self.form.transcribed_bars()
+        self.n = len(self.bars)
+        self._auto_cache = None
+        self.state["bar_times"] = self._initial_times()   # a placeholder of the right length; the taps replace it just below
+        self.set_tap_lines(lines, start)
 
     def preview_chart(self, title: str, charts_json: Path, transpose: int | None = None, rotation: int = 0) -> dict:
         """The chart's chords in the chosen key, starting at the chosen chart bar, without changing anything."""

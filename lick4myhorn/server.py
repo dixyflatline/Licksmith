@@ -280,6 +280,16 @@ def create_app(root: Path) -> FastAPI:
     async def align_detect(work: str, body: dict = Body(...)):
         return _guard(_aw(work).detect_chart, body["title"], _charts())
 
+    @app.post("/api/align/{work}/chords/choruses")
+    async def align_choruses(work: str, body: dict = Body(...)):
+        return _guard(_aw(work).find_choruses, body["title"], _charts(), body["lines"])
+
+    @app.post("/api/align/{work}/chords/apply-choruses")
+    async def align_apply_choruses(work: str, body: dict = Body(...)):
+        w = _aw(work)
+        _guard(w.apply_choruses, body["title"], _charts(), int(body["transpose"]), body["lines"], int(body["start"]), int(body["count"]), int(body.get("tag", 0)))
+        return w.summary()
+
     @app.post("/api/align/{work}/chords/preview")
     async def align_preview(work: str, body: dict = Body(...)):
         t = body.get("transpose")
