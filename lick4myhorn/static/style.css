@@ -210,7 +210,9 @@ button.listen { padding: 4px 9px; font-size: 13px; border-color: var(--line); co
 .al-bar { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; min-width: 0; }
 .al-pad { visibility: hidden; }
 .al-bar.locked { border-color: var(--brass-dim); }
-.al-bar.now { outline: 2px solid #ff5d5d; }
+/* the bar that is playing: yellow, so it cannot be mistaken for a picked bar (red) */
+.al-bar.now { outline: 2px solid var(--brass); background: rgba(242, 186, 43, .12); }
+.al-bar.now.picked { outline-offset: 2px; }
 .al-bar-head { display: flex; align-items: center; gap: 8px; margin: -4px -4px 4px; padding: 4px; min-height: 36px; border-radius: 6px;
   cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
 .al-bar-head:hover { background: var(--panel-2); }
