@@ -401,3 +401,10 @@ img, svg, canvas { max-width: 100%; }
 /* routine checklist docked above the Licks and Tunes pages */
 .rdock { margin-bottom: 16px; }
 #pTrouble.on { background: rgba(224, 82, 82, .18); border-color: var(--again); color: var(--again); font-weight: 600; }
+
+/* Learn by ear: the bars of a song as a strip you pick a stretch from */
+.ear-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); gap: 4px; max-height: 230px; overflow-y: auto; padding: 2px; }
+.ear-bar { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 5px 2px; font-size: 13px; }
+.ear-bar small { color: var(--muted); font-size: 11px; font-family: ui-monospace, Menlo, monospace; }
+.ear-bar.sel { background: rgba(210, 35, 27, .22); border-color: var(--red); color: var(--text); }
+.ear-bar.now { outline: 2px solid var(--brass); background: rgba(242, 186, 43, .2); }
