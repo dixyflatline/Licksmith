@@ -17,7 +17,8 @@ VIEWS.learn = async () => {
   const remember = () => { try { localStorage.setItem("earSetup", JSON.stringify(pref)); } catch (e) { /* storage blocked */ } };
   if (!works.some(w => w.work === pref.work)) pref.work = works[0].work;
 
-  let A = null, token = 0, running = false;
+  let A = null, token = 0, running = false, bpm0 = 120;   // bpm0: the song's average tempo from its bar lines
+  const curBpm = () => bpm0 * pref.speed / 100;
   const setPhase = t => { const p = $("#eaPhase"); if (p) p.textContent = t; };
   const setPlayBtn = () => {
     const b = $("#eaPlay"); if (!b) return;
@@ -39,22 +40,20 @@ VIEWS.learn = async () => {
       if (token !== my || (!A.playing && Date.now() - t0 > 2500)) fin();
     }, 100);
   });
-  async function turn(a, b, rate, my) {
-    const e = Band.engine, T = A.times, bpb = A.D.bpb, t0 = T[a - 1], t1 = T[b];
+  // One steady tempo for clicks, count-in and the turn, whatever the bar lines do: the tempo slider.
+  async function turn(a, b, my) {
+    const e = Band.engine, bpb = A.D.bpb, spb = 60 / curBpm(), n = (b - a + 1) * bpb;
     A.liveBus();
     const now = e.ctx.currentTime + 0.08;
-    if (pref.click) for (let i = a - 1; i < b; i++) for (let j = 0; j < bpb; j++)
-      e.click(now + (T[i] + j * (T[i + 1] - T[i]) / bpb - t0) / rate, j === 0);
-    const start = performance.now(), ms = (t1 - t0) / rate * 1000;
+    if (pref.click) for (let k = 0; k < n; k++) e.click(now + k * spb, k % bpb === 0);
+    const start = performance.now(), ms = n * spb * 1000;
     while (token === my && performance.now() - start < ms) {
-      const t = t0 + (performance.now() - start) / 1000 * rate;
-      let i = a - 1; while (i < b - 1 && t >= T[i + 1]) i++;
-      A.showBar(i);
+      A.showBar(a - 1 + Math.min(b - a, Math.floor((performance.now() - start) / 1000 / spb / bpb)));
       await sleep(30, my);
     }
   }
-  async function countIn(a, rate, my) {
-    const e = Band.engine, T = A.times, bpb = A.D.bpb, spb = (T[a] - T[a - 1]) / bpb / rate;
+  async function countIn(my) {
+    const e = Band.engine, bpb = A.D.bpb, spb = 60 / curBpm();
     A.liveBus();
     const now = e.ctx.currentTime + 0.08;
     for (let j = 0; j < bpb; j++) e.click(now + j * spb, j === 0);
@@ -72,7 +71,7 @@ VIEWS.learn = async () => {
       if (!first) { toast("Tick some bars first."); return; }
       A.rate = pref.speed / 100;
       Band.engine.init(); if (Band.engine.ctx.state === "suspended") await Band.engine.ctx.resume();
-      if (pref.countin) { setPhase("Count-in"); await countIn(first.a, A.rate, my); }
+      if (pref.countin) { setPhase("Count-in"); await countIn(my); }
       let round = 0;
       while (token === my && S.tab === "learn" && A === Ar) {
         const r = span || A.pick;
@@ -85,7 +84,7 @@ VIEWS.learn = async () => {
           await segment(r.a, r.b, mode, my);
         }
         if (token !== my) break;
-        if (pref.turn) { setPhase(`Your turn · ${label}`); await turn(r.a, r.b, A.rate, my); }
+        if (pref.turn) { setPhase(`Your turn · ${label}`); await turn(r.a, r.b, my); }
       }
     } catch (err) { toast(err.message); }
     if (token === my) stop();
@@ -103,6 +102,7 @@ VIEWS.learn = async () => {
     cleanup: () => { stop(); },
     attach(a) {
       A = a;
+      { const T = A.times, nb = T.length - 1; bpm0 = Math.max(30, nb * A.D.bpb * 60 / Math.max(1, T[nb] - T[0])); }
       if (pref.work !== A.work) { pref.work = A.work; pref.a = 1; pref.b = Math.min(4, A.D.bars.length); }
       pref.a = Math.max(1, Math.min(pref.a, A.D.bars.length)); pref.b = Math.max(pref.a, Math.min(pref.b, A.D.bars.length));
       A.pick = { a: pref.a, b: pref.b };
@@ -113,16 +113,21 @@ VIEWS.learn = async () => {
         <button class="primary play-btn" id="eaPlay" title="Play / stop (space)">▶</button>
         <div class="phase" id="eaPhase">Ready</div>
         <label class="check">Sound <select id="eaSource"><option value="rec">Recording</option><option value="midi" ${hasMidi ? "" : "disabled"}>MIDI</option></select></label>
-        <label class="check">Speed <select id="eaSpeed">${[40, 50, 60, 70, 80, 90, 100].map(v => `<option value="${v}">${v}%</option>`).join("")}</select></label>
+        <label class="check" title="Drag to set the tempo. It slows the recording (pitch unchanged), and sets the clicks and the length of your turn.">Tempo <input type="range" id="eaTempo" min="${Math.round(bpm0 * 0.3)}" max="${Math.round(bpm0 * 1.2)}" step="1" style="width:150px"> <b id="eaBpm" style="min-width:64px;display:inline-block">♩ = ${Math.round(curBpm())}</b></label>
         <label class="check">Listen <select id="eaListens">${[1, 2, 3, 4].map(v => `<option>${v}</option>`).join("")}</select> ×</label>
         <label class="check"><input type="checkbox" id="eaTurn"> Your turn</label>
         <label class="check" title="A soft click on the beats while it is your turn"><input type="checkbox" id="eaClick"> Click</label>
         <label class="check" title="One bar of clicks before the first loop"><input type="checkbox" id="eaCountin"> Count-in</label>
       </div>`;
-      $("#eaSource").value = pref.source; $("#eaSpeed").value = pref.speed; $("#eaListens").value = pref.listens;
+      $("#eaSource").value = pref.source; $("#eaTempo").value = Math.round(curBpm()); $("#eaListens").value = pref.listens;
       $("#eaTurn").checked = pref.turn; $("#eaClick").checked = pref.click; $("#eaCountin").checked = pref.countin;
       const bind = (id, key, get) => $("#" + id).addEventListener("change", () => { pref[key] = get($("#" + id)); remember(); });
-      bind("eaSource", "source", x => x.value); bind("eaSpeed", "speed", x => +x.value); bind("eaListens", "listens", x => +x.value);
+      bind("eaSource", "source", x => x.value); $("#eaTempo").addEventListener("input", () => {
+        pref.speed = Math.max(30, Math.min(120, +$("#eaTempo").value / bpm0 * 100)); A.rate = running ? pref.speed / 100 : 1;
+        $("#eaBpm").textContent = `♩ = ${Math.round(curBpm())}`; remember();
+        if (running && A.mode === "audio") { const au = A.audio; if (au) au.playbackRate = pref.speed / 100; }
+      });
+      bind("eaListens", "listens", x => +x.value);
       bind("eaTurn", "turn", x => x.checked); bind("eaClick", "click", x => x.checked); bind("eaCountin", "countin", x => x.checked);
       $("#eaPlay").onclick = () => ctl.toggle();
       setPlayBtn();

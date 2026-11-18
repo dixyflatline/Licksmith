@@ -49,7 +49,7 @@ solo" and type bar ranges like `17-20, 33-36`.
 
 **Pages.**
 
-- *Routine* (landing page): your daily practice checklist. "Learn licks" opens the Licks tab and "Learn tunes" opens the Play tab (formerly Tunes), which shows that section's checklist with a "Done" button back to the Routine. The Licks tab has no checklist; use the Routine page.
+- *Routine* (landing page): your daily practice checklist. "Learn licks" opens the Licks tab and "Learn tunes" opens the Play tab (formerly Tunes, now `#play`). The checklist lives only on the Routine page.
 - *Licks* (was Today): reviews that are due, then new licks (2 a day by default, favorites first).
 - *Practice*: the lick in each key, in your key order. Play runs a count-in, the lick, then
   the same bars with only the band so you play it back; it moves to the next key after N
@@ -64,7 +64,7 @@ solo" and type bar ranges like `17-20, 33-36`.
   where their chords match beat for beat, transposed and in range. Click any bar to choose
   another lick, play it with the band, and save a practice MusicXML with labels like
   "Chet Baker Tenderly (F)".
-- *Learn* (learn by ear): the Transcribe tab's bar cards for a song you transcribed (tick any run of adjacent bars, chorus and bar number, A ▶ / M ▶, score with chords, note editing with all its keys, same colours, Space = start/stop), with a loop controller on top: the ticked bars play as the recording or as MIDI, 40–100% speed without changing pitch, then an optional silent "your turn" with a soft click. No transcription model, chord import, tempo/key/bars, transcribe-again or waveform.
+- *Learn* (learn by ear): the Transcribe tab's bar cards for a song you transcribed (tick any run of adjacent bars, chorus and bar number, A ▶ / M ▶, score with chords, note editing with all its keys, same colours, Space = start/stop), with a loop controller on top: the ticked bars play as the recording or as MIDI, a draggable tempo slider (shown in BPM; the recording slows without changing pitch, and the clicks and your turn follow the same steady tempo), then an optional silent "your turn" with a soft click. No transcription model, chord import, tempo/key/bars, transcribe-again or waveform.
 - *Progress*: licks known / learning / lapsed, practice per day, upcoming reviews and the keys you
   marked hard.
 - *Settings*: B♭ or concert display, written range (default F♯3–C6), key order (default
