@@ -10,7 +10,7 @@ import tempfile
 import re
 import shutil
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import Body, FastAPI, File, Form, HTTPException, UploadFile
@@ -41,6 +41,15 @@ def create_app(root: Path) -> FastAPI:
                                        "year", "tags", "auto_tags", "favorite", "bars", "due", "reps", "state",
                                        "comment", "notes", "last_rating", "archived", "file", "source",
                                        "source_bars")} | {"label": lick_label(lk)}
+
+    def _scope_info(lick_id: int) -> dict:
+        """The keys in this lick's working set, and the keys you have had Good (with the date), as key names."""
+        sc = srs.lick_scope(lib.db, lick_id, lib.settings)
+        names = {k["pc"]: k["label"] for k in lib.keys_for(lick_id)}
+        nm = lambda p: names.get(int(p), str(p))
+        return {"scope": sc["scope"], "scope_labels": [nm(p) for p in sc["scope"]],
+                "known": sc["known"], "known_labels": [{"key": nm(p), **v} for p, v in sc["known"].items()],
+                "good_streak": sc["good_streak"], "shelved_until": sc["shelved_until"], "good_def": srs.good_def(lib.settings)}
 
     def _get(lick_id: int) -> dict:
         try:
@@ -425,10 +434,14 @@ def create_app(root: Path) -> FastAPI:
     @app.get("/api/today")
     async def today():
         t = srs.today(lib.db, lib.settings)
-        return {"focus": [_lick_summary(lib.lick(r["id"])) for r in t["focus"]], "focus_total": t["focus_total"],
-                "backlog": [_lick_summary(lib.lick(r["id"])) for r in t["backlog"]], "new_held": t["new_held"], "chosen": t["chosen"],
-                "due": [_lick_summary(lib.lick(r["id"])) for r in t["due"]],
-                "new": [_lick_summary(lib.lick(r["id"])) for r in t["new"]],
+        def S(r):
+            i = _scope_info(r["id"])
+            return _lick_summary(lib.lick(r["id"])) | {k: i[k] for k in ("scope_labels", "known_labels", "shelved_until")}
+        return {"focus": [S(r) for r in t["focus"]], "focus_total": t["focus_total"],
+                "backlog": [S(r) for r in t["backlog"]], "new_held": t["new_held"], "chosen": t["chosen"],
+                "shelved": [S(r) for r in t["shelved"]],
+                "due": [S(r) for r in t["due"]],
+                "new": [S(r) for r in t["new"]],
                 "done_today": t["done_today"], "new_remaining": t["new_remaining"],
                 "introduced_today": t["introduced_today"]}
 
@@ -442,7 +455,26 @@ def create_app(root: Path) -> FastAPI:
                        body.get("note", ""), planned)
         for pc in body.get("clear_hard", []):   # keys played well this session: no longer marked hard
             lib.db.x("DELETE FROM key_hard WHERE lick_id=? AND pc=?", (lick_id, int(pc) % 12))
+        names = {k["pc"]: k["label"] for k in lib.keys_for(lick_id)}
+        r["expanded_labels"] = [names.get(p, str(p)) for p in r["expanded"]]
+        r["scope_labels"] = [names.get(p, str(p)) for p in r["scope"]]
         return r
+
+    @app.post("/api/licks/{lick_id}/unshelve")
+    async def unshelve(lick_id: int):
+        _get(lick_id)
+        lib.db.x("UPDATE cards SET shelved_until=NULL, due=? WHERE lick_id=?", (datetime.now(timezone.utc).isoformat(timespec="seconds"), lick_id))
+        return {"ok": True}
+
+    @app.post("/api/licks/{lick_id}/scope")
+    async def set_scope(lick_id: int, body: dict = Body(...)):
+        """Choose by hand which keys are in a lick's working set (pitch classes)."""
+        _get(lick_id)
+        pcs = sorted({int(p) % 12 for p in body.get("scope", [])})
+        if not pcs:
+            raise HTTPException(400, "A lick needs at least one key")
+        lib.db.x("INSERT INTO cards(lick_id, scope) VALUES(?,?) ON CONFLICT(lick_id) DO UPDATE SET scope=excluded.scope", (lick_id, json.dumps(pcs)))
+        return _scope_info(lick_id)
 
     PRACTICE_CFG_KEYS = {"order": str, "reps": int, "hear": bool, "sound": str, "resp": bool, "back": bool,
                          "stay": bool, "swing": int, "start_pc": int}
@@ -530,6 +562,7 @@ def create_app(root: Path) -> FastAPI:
     async def lick_detail(lick_id: int, order: str | None = None):
         lk = _get(lick_id)
         out = _lick_summary(lk)
+        out.update(_scope_info(lick_id))
         out["practice_cfg"] = _practice_cfg(lick_id) or lib.settings.get("practice_last") or None
         out["hard_pcs"] = [r["pc"] for r in lib.db.q("SELECT pc FROM key_hard WHERE lick_id=?", (lick_id,))]
         out["keys"] = lib.keys_for(lick_id, order or (out["practice_cfg"] or {}).get("order"))

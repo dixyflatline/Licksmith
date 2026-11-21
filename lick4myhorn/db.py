@@ -143,6 +143,8 @@ DEFAULTS = {
     "my_steps": [0, 5, 7, -2],     # original, P4 up, P5 up, M2 down (then cycle of 4ths)
     "new_per_day": 2,
     "max_reviews": 20,
+    # what "Good" means, and what happens next (see srs.GOOD_DEF)
+    "good_def": {"clean_passes": 2, "min_tempo": 0, "sessions": 2, "starter_keys": 2, "add_keys": 1, "stuck_after": 4, "shelve_days": 21},
     "focus_cap": 4,                # hard/again licks in one day's plan (about what an hour of practice holds)
     "hold_new": True,              # no new licks while any lick is still rated hard/again
     "desired_retention": 0.9,
@@ -193,7 +195,10 @@ class DB:
             for col in ("section", "text"):
                 if col not in have:
                     self.conn.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} TEXT")
-        for tbl, col, typ in (("cards", "chosen", "INTEGER DEFAULT 0"), ("reviews", "planned", "INTEGER")):
+        for tbl, col, typ in (("cards", "chosen", "INTEGER DEFAULT 0"), ("reviews", "planned", "INTEGER"),
+                              ("cards", "scope", "TEXT"), ("cards", "known", "TEXT"), ("cards", "good_streak", "INTEGER DEFAULT 0"),
+                              ("cards", "hard_streak", "INTEGER DEFAULT 0"), ("cards", "shelved_until", "TEXT"),
+                              ("reviews", "scope", "TEXT"), ("reviews", "good_def", "TEXT")):
             have = {r[1] for r in self.conn.execute(f"PRAGMA table_info({tbl})")}
             if col not in have:   # chosen: a hard/again lick you picked yourself; planned: the lick was in the day's plan when reviewed
                 self.conn.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} {typ}")

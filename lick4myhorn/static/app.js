@@ -52,6 +52,14 @@ const pretty = s => esc(s || "").replace(/^([A-G])b/, "$1♭").replace(/^([A-G])
 const written = () => (S.settings || {}).display !== "concert";
 const showSym = s => pretty(written() ? transposeSym(s, 2) : s);
 const keyText = l => pretty((written() ? transposeSym(l.tonic_name, 2) : l.tonic_name) + (l.mode === "minor" ? "m" : ""));
+// The keys of a lick: the working set, and the keys that have been Good (so a lick that is Good in two keys never looks "known" in all 12).
+const GOOD_TEXT = gd => `Good means ${gd.clean_passes} clean pass${gd.clean_passes == 1 ? "" : "es"} in a row in every key of your set${gd.min_tempo ? ` at ${gd.min_tempo} bpm or faster` : ""}. ${gd.sessions} Good rating${gd.sessions == 1 ? "" : "s"} in a row add${gd.sessions == 1 ? "s" : ""} ${gd.add_keys} more key${gd.add_keys == 1 ? "" : "s"}; ${gd.stuck_after} Hard/Again in a row shelves the lick for ${gd.shelve_days} days.`;
+const keysLine = l => {
+  const known = (l.known_labels || []).map(k => k.key), set = l.scope_labels || [];
+  if (!set.length) return "";
+  const n = known.length;
+  return `<div class="small muted" title="${esc((l.known_labels || []).map(k => `${k.key}: Good on ${k.on}${k.bpm ? " at " + k.bpm + " bpm" : ""}`).join("; "))}">Working on ${esc(set.join(", "))}${n ? ` · Good in ${esc(known.join(", "))}` : " · not Good in any key yet"}${n && n < 12 ? ` · ${12 - n} key${12 - n === 1 ? "" : "s"} not learned` : ""}</div>`;
+};
 const stateBadge = st => `<span class="badge ${esc(st)}">${esc(st)}</span>`;
 function dueText(iso) {
   if (!iso) return "";
@@ -171,11 +179,11 @@ VIEWS.licks = async () => {
       ${playBtn("data-listen", l.id)}
       <div class="num">#${l.number}</div>
       <div class="grow"><div class="title">${esc(l.label)}</div>
-        <div class="small muted">from the key of ${keyText(l)}</div>
+        <div class="small muted">from the key of ${keyText(l)}</div>${keysLine(l)}
         <div>${tagChips(l, 6)}</div></div>
       ${kind === "focus" || kind === "wait" ? `<span class="badge" title="${mine.has(l.id) ? "You started this one yourself and rated it Hard or Again: it comes first" : "Chosen by the schedule"}">${mine.has(l.id) ? "mine" : "hard"}</span>` : ""}
       ${stateBadge(kind === "new" ? "new" : l.state)}
-      <button data-practice="${l.id}">Practice</button>
+      ${kind === "shelf" ? `<span class="muted small">until ${esc(l.shelved_until)}</span><button data-unshelve="${l.id}">Bring back</button>` : `<button data-practice="${l.id}">Practice</button>`}
     </div>`;
   main().innerHTML = `
     <h1>Licks</h1>
@@ -193,6 +201,7 @@ VIEWS.licks = async () => {
     ${t.focus.length ? `<h2>Focus</h2><p class="small muted">${t.focus_total} hard lick${t.focus_total === 1 ? "" : "s"} for today. Get these to Good before anything new.</p><div class="lick-list">${t.focus.map(l => row(l, "focus")).join("")}</div>` : ""}
     ${t.due.length ? `<h2>Due</h2><div class="lick-list">${t.due.map(l => row(l, "due")).join("")}</div>` : ""}
     ${t.new.length ? `<h2>New</h2><div class="lick-list">${t.new.map(l => row(l, "new")).join("")}</div>` : ""}
+    ${t.shelved.length ? `<details style="margin-top:14px"><summary class="muted">Shelved: ${t.shelved.length} lick${t.shelved.length === 1 ? "" : "s"} resting after repeated Hard/Again (cut back to one key)</summary><div class="lick-list">${t.shelved.map(l => row(l, "shelf")).join("")}</div></details>` : ""}
     ${t.backlog.length ? `<details style="margin-top:14px"><summary class="muted">Waiting: ${t.backlog.length} more hard lick${t.backlog.length === 1 ? "" : "s"} (today's focus is full)</summary><div class="lick-list">${t.backlog.map(l => row(l, "wait")).join("")}</div></details>` : ""}
     ${!queue.length && !t.done_today.length ? `<div class="card" style="margin-top:20px">
       <h3>Getting started</h3><p class="muted">Import a lick sheet (MusicXML from MuseScore) on the <a href="#import">Import</a> page.
@@ -203,6 +212,7 @@ VIEWS.licks = async () => {
   const hs = $("#hardSession");
   if (hs) hs.onclick = () => startPractice(hard.licks.map(l => l.id), 0, { hardOnly: true });
   $$("[data-practice]").forEach(b => b.onclick = () => startPractice([+b.dataset.practice], 0));
+  $$("[data-unshelve]").forEach(b => b.onclick = async () => { await api(`/api/licks/${b.dataset.unshelve}/unshelve`, { method: "POST", body: {} }); VIEWS.licks(); });
   wireListen();
 };
 
@@ -363,7 +373,7 @@ async function loadPracticeLick() {
     sound: d.audio ? (cfg.sound ?? "rec") : "midi", resp: cfg.resp ?? st.call_response, back: cfg.back ?? st.backing,
     stay: cfg.stay ?? (st.stay_in_key !== false), swing: cfg.swing ?? Math.round(st.swing * 100), start_pc: cfg.start_pc ?? null,
   };
-  Object.assign(P, { lick: d, cfg: C, rep: 0, done: new Set(), trouble: new Set(), hard: new Set(d.hard_pcs || []), data: {}, kt: d.key_tempo || {} });
+  Object.assign(P, { lick: d, cfg: C, rep: 0, done: new Set(), trouble: new Set(), hard: new Set(d.hard_pcs || []), allKeys: false, data: {}, kt: d.key_tempo || {} });
   P.keys = prepKeys(d.keys);
   P.ki = Math.max(0, P.keys.findIndex(k => k.pc === C.start_pc));
   main().innerHTML = `
@@ -373,6 +383,8 @@ async function loadPracticeLick() {
         <h1>${esc(d.label)} <span class="star ${d.favorite ? "on" : ""}" id="pStar" title="Favorite">★</span></h1>
         <div>${tagChips(d, 12)}</div>
         ${d.comment ? `<div class="small muted" style="margin-top:6px">${esc(d.comment)}</div>` : ""}
+        ${keysLine(d)}
+        <label class="check small" title="Your set is the keys this lick has to be Good in before more keys join. Practising others does not change the rating."><input type="checkbox" id="pAll"> Also practise the other keys</label>
       </div>
       <div class="row">
         <select id="pOrder" title="Order of the keys">${Object.entries(S.meta.orders).map(([k, v]) => `<option value="${k}" ${k === C.order ? "selected" : ""}>${esc(v)}</option>`).join("")}</select>
@@ -398,6 +410,7 @@ async function loadPracticeLick() {
       <button id="pTrouble" title="Mark this key as hard (T)">Mark key hard</button>
     </div>
     <div class="card">
+      <div class="small muted" style="margin-bottom:6px">${esc(GOOD_TEXT(d.good_def))} <b id="pMeets"></b></div>
       <div class="row"><b>How did it go?</b><span class="muted small">Rate after you've been through the keys. Keys done: <span id="pDone">0</span>/${P.keys.length}</span>
       <div class="grow"></div><input id="pNote" placeholder="Note (optional)" style="width:300px"></div>
       <div class="rate">
@@ -409,7 +422,7 @@ async function loadPracticeLick() {
   showKey(P.ki);
   for (let i = 0; i < 4; i++) $("#pDots").appendChild(document.createElement("i"));
   $("#pTempo").oninput = e => $("#pTempoV").textContent = e.target.value;
-  $("#pTempo").onchange = () => saveKeyTempo();
+  $("#pTempo").onchange = () => { saveKeyTempo(); meetsGood(); };
   $("#pSlower").onclick = () => nudgeTempo(-st.tempo_step);
   $("#pFaster").onclick = () => nudgeTempo(st.tempo_step);
   $("#pNextKey").onclick = () => {
@@ -425,6 +438,13 @@ async function loadPracticeLick() {
     await api(`/api/licks/${d.id}`, { method: "PATCH", body: { favorite: on ? 1 : 0 } });
     $("#pStar").classList.toggle("on", on);
   };
+  $("#pAll").onchange = e => {
+    Band.sequencer.stop(true);
+    P.allKeys = e.target.checked; P.keys = prepKeys(d.keys); P.ki = 0; P.done = new Set(); P.trouble = new Set(); P.data = {};
+    $("#pStart").innerHTML = P.keys.map(k => `<option value="${k.pc}">${esc(k.label)}</option>`).join("");
+    renderKeys(); showKey(0); prefetch();
+  };
+  $("#pReps").addEventListener("change", meetsGood);
   $("#pOrder").onchange = async e => {
     Band.sequencer.stop(true);
     const dd = await api(`/api/licks/${d.id}?order=${e.target.value}`);
@@ -449,7 +469,8 @@ async function loadPracticeLick() {
 // Keys you marked hard come first (and, in a hard-keys session, are the only ones).
 function prepKeys(keys) {
   const P = S.practice, hard = k => P.hard.has(k.pc);
-  let ks = keys;
+  let ks = P.allKeys || P.hardOnly ? keys : keys.filter(k => (P.lick.scope || []).includes(k.pc));   // only the keys in this lick's set, unless you ask for all
+  if (!ks.length) ks = keys;
   if (P.hardOnly && ks.some(hard)) ks = ks.filter(hard);
   return [...ks.filter(hard), ...ks.filter(k => !hard(k))];
 }
@@ -541,6 +562,20 @@ function renderKeys() {
   });
   $("#pDone").textContent = P.done.size;
   syncTrouble();
+  meetsGood();
+}
+// Does this pass meet your definition of Good? Every key of the set played, none marked hard, enough passes, fast enough.
+function meetsGood() {
+  const P = S.practice, el = $("#pMeets"), gd = P.lick.good_def;
+  if (!el || !gd) return;
+  const inSet = P.keys.map((k, i) => [k, i]).filter(([k]) => (P.lick.scope || []).includes(k.pc));
+  const played = inSet.every(([, i]) => P.done.has(i)), clean = !inSet.some(([, i]) => P.trouble.has(i));
+  const passes = +$("#pReps").value >= gd.clean_passes;
+  const fast = !gd.min_tempo || inSet.every(([k, i]) => ((i === P.ki ? +$("#pTempo").value : 0) || P.kt[k.pc] || 0) >= gd.min_tempo);
+  const ok = played && clean && passes && fast;
+  el.textContent = ok ? "This pass meets it: Good." : !played ? "Not all keys of your set are played yet." : !clean ? "A key is marked hard." : !passes ? `Set times per key to ${gd.clean_passes} or more.` : "Some key is below the tempo.";
+  el.style.color = ok ? "var(--good, #2e7d32)" : "";
+  const g = document.querySelector("[data-rate='3']"); if (g) g.classList.toggle("suggest", ok);
 }
 
 async function showKey(i) {
@@ -688,7 +723,9 @@ async function rate(r) {
   });
   if (cleared.length) toast(`${cleared.map(i => P.keys[i].label).join(", ")} no longer marked hard.`, 4000);
   P.results.push({ lick: P.lick.label, rating: r, days: res.in_days });
-  toast(`Saved. Next review in ${Math.max(1, Math.round(res.in_days))} day${Math.round(res.in_days) > 1 ? "s" : ""}.`);
+  toast(res.expanded_labels && res.expanded_labels.length ? `Good again: ${res.expanded_labels.join(", ")} joins your set (now ${res.scope_labels.join(", ")}). See it again tomorrow.`
+    : res.shelved_until ? `Stuck: shelved until ${res.shelved_until}, cut back to ${res.scope_labels.join(", ")}.`
+    : `Saved. Next review in ${Math.max(1, Math.round(res.in_days))} day${Math.round(res.in_days) > 1 ? "s" : ""}.`, 5000);
   nextLick();
 }
 
@@ -827,7 +864,7 @@ async function openLick(id, nav = "push") {
   bg.innerHTML = `<div class="modal">
     <button class="close ghost" id="mClose">✕</button>
     <h1>${esc(d.label)} <span class="star ${d.favorite ? "on" : ""}" id="mStar">★</span> <span class="chip">#${d.number}</span> ${stateBadge(d.state)}</h1>
-    <div style="margin:6px 0 12px">${tagChips(d)}</div>
+    <div style="margin:6px 0 12px">${tagChips(d)}${keysLine(d)}</div>
     <div class="row" style="margin-bottom:10px">
       <select id="mKey" title="Key for ▶ Play (the notes below stay as written for B♭ trumpet)">${d.keys.map(k => `<option value="${k.pc}">${esc(k.label)}${k.fits ? "" : " (out of range)"}</option>`).join("")}</select>
       <button id="mPlay">▶ Play</button>
@@ -1371,6 +1408,13 @@ VIEWS.settings = async () => {
           <label class="field">Max reviews per day<input id="sMax" type="number" min="1" value="${st.max_reviews}"></label>
           <label class="field" title="Licks still rated Hard or Again that go into one day's plan. About 3-4 fit in an hour; the others wait.">Hard licks in focus<input id="sFocus" type="number" min="1" value="${st.focus_cap ?? 4}"></label>
           <label class="field" title="On: no new licks are offered while any lick is still rated Hard or Again."><span>Hold new licks until hard ones are Good</span><input id="sHold" type="checkbox" ${st.hold_new !== false ? "checked" : ""}></label>
+          <label class="field" title="Clean passes in a row, in every key of the lick's set, for a Good rating">Good: clean passes<input id="sGPass" type="number" min="1" max="8" value="${(st.good_def || {}).clean_passes ?? 2}"></label>
+          <label class="field" title="Every key of the set must reach this tempo. 0 means no tempo requirement.">Good: minimum tempo (bpm)<input id="sGTempo" type="number" min="0" max="320" value="${(st.good_def || {}).min_tempo ?? 0}"></label>
+          <label class="field" title="Good ratings in a row before more keys join the set">Good ratings to add keys<input id="sGSess" type="number" min="1" value="${(st.good_def || {}).sessions ?? 2}"></label>
+          <label class="field" title="Keys joining the set each time">Keys added each time<input id="sGAdd" type="number" min="1" max="12" value="${(st.good_def || {}).add_keys ?? 1}"></label>
+          <label class="field" title="Keys a new lick starts with, in 'my order'">Starter keys per lick<input id="sGStart" type="number" min="1" max="12" value="${(st.good_def || {}).starter_keys ?? 2}"></label>
+          <label class="field" title="Hard or Again in a row before the lick is shelved and cut back to one key">Shelve after Hard/Again ×<input id="sGStuck" type="number" min="1" value="${(st.good_def || {}).stuck_after ?? 4}"></label>
+          <label class="field" title="How long a stuck lick rests">Shelve for (days)<input id="sGDays" type="number" min="1" value="${(st.good_def || {}).shelve_days ?? 21}"></label>
           <label class="field">Target recall (FSRS retention)<select id="sRet">${[0.8, 0.85, 0.9, 0.93, 0.95].map(v => `<option ${v === st.desired_retention ? "selected" : ""}>${v}</option>`).join("")}</select></label>
         </div>
         <p class="small muted">Higher recall means shorter gaps between reviews (more practice, fewer forgotten licks).</p>
@@ -1439,7 +1483,9 @@ VIEWS.settings = async () => {
     S.settings = await api("/api/settings", {
       method: "PUT", body: {
         display: $("#sDisplay").value, range_low: lo, range_high: hi, key_order: $("#sOrder").value, my_steps: steps,
-        new_per_day: +$("#sNew").value, max_reviews: +$("#sMax").value, focus_cap: Math.max(1, +$("#sFocus").value || 4), hold_new: $("#sHold").checked, desired_retention: +$("#sRet").value,
+        new_per_day: +$("#sNew").value, max_reviews: +$("#sMax").value, focus_cap: Math.max(1, +$("#sFocus").value || 4),
+        good_def: { clean_passes: +$("#sGPass").value || 2, min_tempo: +$("#sGTempo").value || 0, sessions: +$("#sGSess").value || 2, add_keys: +$("#sGAdd").value || 1,
+          starter_keys: +$("#sGStart").value || 2, stuck_after: +$("#sGStuck").value || 4, shelve_days: +$("#sGDays").value || 21 }, hold_new: $("#sHold").checked, desired_retention: +$("#sRet").value,
         tempo: +$("#sTempo").value, swing: +$("#sSwing").value / 100, lead_in: +$("#sLeadIn").value, reps_per_key: +$("#sReps").value,
         start_tempo: +$("#sStart").value, tempo_step: +$("#sStep").value, stay_in_key: $("#sStay").checked,
         play_lick: $("#sHear").checked, call_response: $("#sResp").checked, backing: $("#sBack").checked,

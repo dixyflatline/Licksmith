@@ -142,6 +142,7 @@ label.check { display: inline-flex; align-items: center; gap: 6px; font-size: 14
 .phase { font-size: 13px; color: var(--muted); min-width: 120px; }
 .rate { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px; }
 .rate button { flex-direction: column; padding: 12px; font-weight: 600; }
+.rate button.suggest { outline: 2px solid var(--brass); outline-offset: 2px; }
 .rate button small { font-weight: 400; color: var(--muted); }
 .rate .r1 { border-color: var(--again); } .rate .r2 { border-color: var(--hard); }
 .rate .r3 { border-color: var(--good); } .rate .r4 { border-color: var(--easy); }
