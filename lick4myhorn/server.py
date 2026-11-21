@@ -407,9 +407,12 @@ def create_app(root: Path) -> FastAPI:
         since = (datetime.now() - timedelta(days=max(1, min(days, 3650)))).strftime("%Y-%m-%d")
         buf = io.StringIO()
         w = csv.writer(buf)
-        w.writerow(["date", "section", "item", "done", "note"])
-        for r in sorted(lib.db.routine_log(since), key=lambda r: (r["day"], r["section"], r["text"])):
-            w.writerow([r["day"], r["section"], r["text"], "yes" if r["done"] else "no", r["note"]])
+        w.writerow(["session", "date", "section", "exercise_id", "exercise", "done", "note"])
+        rows = lib.db.routine_log("0000-01-01")   # session numbers count from your first practice day, whatever the export range
+        days = sorted({r["day"] for r in rows})
+        number = {d: i + 1 for i, d in enumerate(days)}
+        for r in sorted((r for r in rows if r["day"] >= since), key=lambda r: (r["day"], r["section"] or "", r["text"])):
+            w.writerow([number[r["day"]], r["day"], r["section"], r["item"], r["text"], "yes" if r["done"] else "no", r["note"]])
         return Response(buf.getvalue(), media_type="text/csv; charset=utf-8",
                         headers={"Content-Disposition": 'attachment; filename="licksmith-routine.csv"'})
 
