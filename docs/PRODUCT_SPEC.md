@@ -193,7 +193,10 @@ On finishing, a panel asks "Bar 1 of this song's form is tap # [n]" (default: th
 
 ## 6. Licks page (formerly Today)
 
-Shows today's session: first **reviews that are due** (most overdue first, capped by `max_reviews`, default 20), then **new licks** (`new_per_day`, default 2; favourites first).
+Shows today's session in this order:
+1. **Focus**: licks whose last rating was Hard or Again, capped at `focus_cap` (default 4, about what an hour of practice holds). Licks you picked yourself come first: if you practise a lick that was not in the day's plan and rate it Hard/Again, it is marked *mine* (`cards.chosen`, set from `reviews.planned`) and outranks the schedule's picks until you rate it Good or Easy; among them the most recently practised first, so you stay with the same small group. More than `focus_cap` are allowed (you may pick many); the extra ones wait in a collapsed "Waiting" list and move up as slots free.
+2. **Due**: reviews that are going well (last rating Good/Easy), most overdue first, capped by `max_reviews` (default 20).
+3. **New licks** (`new_per_day`, default 2; favourites first), held back while any lick is still Hard/Again (`hold_new`, default on).
 
 Top: three stat cards, "due for review", "new today", "practised today"; a primary **Start session (N)** button that opens practice on the first item and moves through the list.
 
@@ -248,7 +251,7 @@ Opened from Today/Library. Shows the lick in the current key and a strip of the 
 
 `Scheduler(desired_retention=<setting, default 0.9>, learning_steps=(), relearning_steps=(), maximum_interval=365, enable_fuzzing=True)`. No minute-level steps: the shortest interval is one day, because practice is a once-a-day activity. "Due today" means due before the end of the local day.
 
-Today's session = due cards sorted most-overdue first (limited), then new licks (favourites first) up to `new_per_day`, minus those already introduced today.
+Today's session: see section 6 (capped focus of Hard/Again licks with your own picks first, then due reviews that are going well, then new licks held back while anything is Hard/Again).
 
 ---
 
@@ -374,6 +377,8 @@ UI: the chart with a small notation snippet over each placed bar; click any bar 
 | `my_steps` | [0, 5, 7, −2] | semitone steps for "my order" |
 | `new_per_day` | 2 | |
 | `max_reviews` | 20 | |
+| `focus_cap` | 4 | Hard/Again licks in one day's plan |
+| `hold_new` | true | No new licks while any lick is Hard/Again |
 | `desired_retention` | 0.9 | FSRS target |
 | `tempo` | 120 | quarter-note BPM |
 | `start_tempo` | 60 | first tempo in a new key |

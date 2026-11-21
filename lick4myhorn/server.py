@@ -425,7 +425,9 @@ def create_app(root: Path) -> FastAPI:
     @app.get("/api/today")
     async def today():
         t = srs.today(lib.db, lib.settings)
-        return {"due": [_lick_summary(lib.lick(r["id"])) for r in t["due"]],
+        return {"focus": [_lick_summary(lib.lick(r["id"])) for r in t["focus"]], "focus_total": t["focus_total"],
+                "backlog": [_lick_summary(lib.lick(r["id"])) for r in t["backlog"]], "new_held": t["new_held"], "chosen": t["chosen"],
+                "due": [_lick_summary(lib.lick(r["id"])) for r in t["due"]],
                 "new": [_lick_summary(lib.lick(r["id"])) for r in t["new"]],
                 "done_today": t["done_today"], "new_remaining": t["new_remaining"],
                 "introduced_today": t["introduced_today"]}
@@ -433,9 +435,11 @@ def create_app(root: Path) -> FastAPI:
     @app.post("/api/licks/{lick_id}/review")
     async def review(lick_id: int, body: dict = Body(...)):
         _get(lick_id)
+        t = srs.today(lib.db, lib.settings)
+        planned = lick_id in {r["id"] for r in t["due"] + t["new"]} | set(t["focus_ids"])   # anything else is a lick you chose yourself
         r = srs.review(lib.db, lick_id, int(body["rating"]), lib.settings, body.get("keys_done", []),
                        body.get("trouble_keys", []), body.get("tempo"), body.get("mode", "drill"),
-                       body.get("note", ""))
+                       body.get("note", ""), planned)
         for pc in body.get("clear_hard", []):   # keys played well this session: no longer marked hard
             lib.db.x("DELETE FROM key_hard WHERE lick_id=? AND pc=?", (lick_id, int(pc) % 12))
         return r

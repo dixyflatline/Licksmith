@@ -56,24 +56,26 @@ def retrievability(db: DB, row: dict, settings: dict) -> float | None:
 
 
 def review(db: DB, lick_id: int, rating: int, settings: dict, keys_done=(), trouble_keys=(),
-           tempo: int | None = None, mode: str = "drill", note: str = "") -> dict:
+           tempo: int | None = None, mode: str = "drill", note: str = "", planned: bool = True) -> dict:
     row = db.one("SELECT * FROM cards WHERE lick_id=?", (lick_id,))
     card = Card.from_dict(json.loads(row["fsrs"])) if row and row["fsrs"] else Card()
     now = datetime.now(timezone.utc)
     card, _log = scheduler(settings).review_card(card, Rating(int(rating)), now)
     due = card.due.isoformat(timespec="seconds")
     reps = (row["reps"] if row else 0) + 1
+    # a hard/again lick that was not in the day's plan is something you chose to work on: it takes precedence until it is Good
+    chosen = 0 if int(rating) >= 3 else (1 if not planned else (row["chosen"] if row and row["chosen"] else 0))
     lapses = (row["lapses"] if row else 0) + (1 if int(rating) == 1 and row and row["reps"] else 0)
     db.conn.execute(
-        "INSERT OR REPLACE INTO cards(lick_id, fsrs, due, reps, lapses, stability, last_review, last_rating, introduced) "
-        "VALUES(?,?,?,?,?,?,?,?,?)",
-        (lick_id, json.dumps(card.to_dict()), due, reps, lapses, card.stability, now_iso(), int(rating),
-         (row["introduced"] if row and row["introduced"] else now_iso())))
-    db.conn.execute(
-        "INSERT INTO reviews(lick_id, ts, rating, keys_done, trouble_keys, tempo, mode, note, due_after, stability) "
+        "INSERT OR REPLACE INTO cards(lick_id, fsrs, due, reps, lapses, stability, last_review, last_rating, introduced, chosen) "
         "VALUES(?,?,?,?,?,?,?,?,?,?)",
+        (lick_id, json.dumps(card.to_dict()), due, reps, lapses, card.stability, now_iso(), int(rating),
+         (row["introduced"] if row and row["introduced"] else now_iso()), chosen))
+    db.conn.execute(
+        "INSERT INTO reviews(lick_id, ts, rating, keys_done, trouble_keys, tempo, mode, note, due_after, stability, planned) "
+        "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
         (lick_id, now_iso(), int(rating), json.dumps(list(keys_done)), json.dumps(list(trouble_keys)), tempo, mode,
-         note, due, card.stability))
+         note, due, card.stability, 1 if planned else 0))
     db.conn.commit()
     days = (card.due - now).total_seconds() / 86400
     return {"due": due, "in_days": round(days, 1), "stability": round(card.stability, 1), "reps": reps}
@@ -94,27 +96,40 @@ def preview_intervals(db: DB, lick_id: int, settings: dict) -> dict:
 
 
 def today(db: DB, settings: dict) -> dict:
-    """Today's session: due reviews (most overdue first), then new licks (favorites first)."""
+    """Today's session. An hour of practice holds about 3-4 licks that are still hard, so those are capped (`focus_cap`) and put first:
+    licks you picked yourself and rated Hard/Again outside the plan come before the ones the schedule picked, and the rest wait.
+    Then the due licks that are going well, then new licks, which are held back while anything is still Hard/Again."""
     rows = db.licks()
     end = _end_of_today()
     today_s = datetime.now().astimezone().date().isoformat()
-    due, new = [], []
     introduced_today = sum(1 for r in rows if _local_day(r.get("introduced")) == today_s)
     reviewed_today = {r["lick_id"] for r in db.q("SELECT DISTINCT lick_id FROM reviews WHERE ts >= ?",
                                                  (datetime.now().astimezone().replace(hour=0, minute=0, second=0)
                                                   .astimezone(timezone.utc).isoformat(timespec="seconds"),))}
+    chosen = {r["lick_id"] for r in db.q("SELECT lick_id FROM cards WHERE chosen=1")}
+    hard, ok, new = [], [], []
     for r in rows:
-        if r.get("reps"):
-            if r.get("due") and datetime.fromisoformat(r["due"]) <= end and r["id"] not in reviewed_today:
-                due.append(r)
-        else:
+        if not r.get("reps"):
             new.append(r)
-    due.sort(key=lambda r: r["due"])
-    due = due[: int(settings.get("max_reviews", 20))]
+        elif r.get("last_rating") in (1, 2):
+            hard.append(r)
+        elif r.get("due") and datetime.fromisoformat(r["due"]) <= end and r["id"] not in reviewed_today:
+            ok.append(r)
+    mine = sorted((r for r in hard if r["id"] in chosen), key=lambda r: r.get("last_review") or "", reverse=True)
+    sched = sorted((r for r in hard if r["id"] not in chosen and r.get("due") and datetime.fromisoformat(r["due"]) <= end),
+                   key=lambda r: (r["last_rating"], r["due"]))
+    ranked = mine + sched
+    cap = max(1, int(settings.get("focus_cap", 4)))
+    focus, backlog = ranked[:cap], ranked[cap:]
+    ok.sort(key=lambda r: r["due"])
+    ok = ok[: int(settings.get("max_reviews", 20))]
     new.sort(key=lambda r: (-r["favorite"], r["number"]))
-    new_quota = max(0, int(settings.get("new_per_day", 2)) - introduced_today)
-    return {"due": due, "new": new[:new_quota], "done_today": sorted(reviewed_today),
-            "new_remaining": len(new), "introduced_today": introduced_today}
+    held = bool(settings.get("hold_new", True)) and bool(hard)
+    new_quota = 0 if held else max(0, int(settings.get("new_per_day", 2)) - introduced_today)
+    return {"focus": [r for r in focus if r["id"] not in reviewed_today], "focus_total": len(focus), "focus_ids": [r["id"] for r in focus], "backlog": backlog,
+            "due": ok, "new": new[:new_quota], "done_today": sorted(reviewed_today),
+            "new_remaining": len(new), "new_held": held and bool(new), "introduced_today": introduced_today,
+            "chosen": sorted(chosen)}
 
 
 def stats(db: DB, settings: dict) -> dict:

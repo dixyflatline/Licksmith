@@ -143,6 +143,8 @@ DEFAULTS = {
     "my_steps": [0, 5, 7, -2],     # original, P4 up, P5 up, M2 down (then cycle of 4ths)
     "new_per_day": 2,
     "max_reviews": 20,
+    "focus_cap": 4,                # hard/again licks in one day's plan (about what an hour of practice holds)
+    "hold_new": True,              # no new licks while any lick is still rated hard/again
     "desired_retention": 0.9,
     "tempo": 120,
     "start_tempo": 60,             # lick practice: first tempo in a key you have not practiced yet
@@ -191,6 +193,10 @@ class DB:
             for col in ("section", "text"):
                 if col not in have:
                     self.conn.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} TEXT")
+        for tbl, col, typ in (("cards", "chosen", "INTEGER DEFAULT 0"), ("reviews", "planned", "INTEGER")):
+            have = {r[1] for r in self.conn.execute(f"PRAGMA table_info({tbl})")}
+            if col not in have:   # chosen: a hard/again lick you picked yourself; planned: the lick was in the day's plan when reviewed
+                self.conn.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} {typ}")
         self.conn.commit()
         self._backfill_routine_text()
 

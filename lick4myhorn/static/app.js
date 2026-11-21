@@ -164,7 +164,8 @@ async function svgFor(lickId, pc) {
 /* ---------------------------------------------------------------- Licks (was Today) */
 VIEWS.licks = async () => {
   const [t, hard] = await Promise.all([api("/api/today"), api("/api/hard").catch(() => ({ licks: [], by_key: {} }))]);
-  const queue = [...t.due, ...t.new];
+  const queue = [...t.focus, ...t.due, ...t.new];
+  const mine = new Set(t.chosen);
   const row = (l, kind) => `
     <div class="lick-item">
       ${playBtn("data-listen", l.id)}
@@ -172,13 +173,15 @@ VIEWS.licks = async () => {
       <div class="grow"><div class="title">${esc(l.label)}</div>
         <div class="small muted">from the key of ${keyText(l)}</div>
         <div>${tagChips(l, 6)}</div></div>
+      ${kind === "focus" || kind === "wait" ? `<span class="badge" title="${mine.has(l.id) ? "You started this one yourself and rated it Hard or Again: it comes first" : "Chosen by the schedule"}">${mine.has(l.id) ? "mine" : "hard"}</span>` : ""}
       ${stateBadge(kind === "new" ? "new" : l.state)}
       <button data-practice="${l.id}">Practice</button>
     </div>`;
   main().innerHTML = `
     <h1>Licks</h1>
-    <p class="sub">Today's session: reviews the forgetting curve says are due, then new licks${t.new_remaining > t.new.length ? ` (${t.new_remaining} new licks waiting)` : ""}.</p>
+    <p class="sub">Today's session: a small focus of hard licks first, then reviews that are going well${t.new_held ? `. New licks wait (${t.new_remaining}) until the hard ones are rated Good` : t.new_remaining > t.new.length ? ` (${t.new_remaining} new licks waiting)` : ""}.</p>
     <div class="hero">
+      <div class="tile"><div class="n">${t.focus.length}</div><div class="l">hard, in focus</div></div>
       <div class="tile"><div class="n">${t.due.length}</div><div class="l">due for review</div></div>
       <div class="tile"><div class="n">${t.new.length}</div><div class="l">new today</div></div>
       <div class="tile"><div class="n">${t.done_today.length}</div><div class="l">practised today</div></div>
@@ -187,8 +190,10 @@ VIEWS.licks = async () => {
         `<div class="muted">Nothing due. <a href="#library">Pick a lick</a> or <a href="#play">fit licks to a tune</a>.</div>`}
         ${hard.licks.length ? `<button class="big" id="hardSession" title="Only the keys you marked hard, in the licks where you marked them">Practice hard keys (${hard.licks.length} lick${hard.licks.length === 1 ? "" : "s"})</button>` : ""}</div>
     </div>
+    ${t.focus.length ? `<h2>Focus</h2><p class="small muted">${t.focus_total} hard lick${t.focus_total === 1 ? "" : "s"} for today. Get these to Good before anything new.</p><div class="lick-list">${t.focus.map(l => row(l, "focus")).join("")}</div>` : ""}
     ${t.due.length ? `<h2>Due</h2><div class="lick-list">${t.due.map(l => row(l, "due")).join("")}</div>` : ""}
     ${t.new.length ? `<h2>New</h2><div class="lick-list">${t.new.map(l => row(l, "new")).join("")}</div>` : ""}
+    ${t.backlog.length ? `<details style="margin-top:14px"><summary class="muted">Waiting: ${t.backlog.length} more hard lick${t.backlog.length === 1 ? "" : "s"} (today's focus is full)</summary><div class="lick-list">${t.backlog.map(l => row(l, "wait")).join("")}</div></details>` : ""}
     ${!queue.length && !t.done_today.length ? `<div class="card" style="margin-top:20px">
       <h3>Getting started</h3><p class="muted">Import a lick sheet (MusicXML from MuseScore) on the <a href="#import">Import</a> page.
       One file can hold many licks: start each with a text like <i>Lick 43, Blues, Major II V, taken from Chet Baker's 1956 Tenderly</i>
@@ -1364,6 +1369,8 @@ VIEWS.settings = async () => {
         <div class="grid cols-2">
           <label class="field">New licks per day<input id="sNew" type="number" min="0" value="${st.new_per_day}"></label>
           <label class="field">Max reviews per day<input id="sMax" type="number" min="1" value="${st.max_reviews}"></label>
+          <label class="field" title="Licks still rated Hard or Again that go into one day's plan. About 3-4 fit in an hour; the others wait.">Hard licks in focus<input id="sFocus" type="number" min="1" value="${st.focus_cap ?? 4}"></label>
+          <label class="field" title="On: no new licks are offered while any lick is still rated Hard or Again."><span>Hold new licks until hard ones are Good</span><input id="sHold" type="checkbox" ${st.hold_new !== false ? "checked" : ""}></label>
           <label class="field">Target recall (FSRS retention)<select id="sRet">${[0.8, 0.85, 0.9, 0.93, 0.95].map(v => `<option ${v === st.desired_retention ? "selected" : ""}>${v}</option>`).join("")}</select></label>
         </div>
         <p class="small muted">Higher recall means shorter gaps between reviews (more practice, fewer forgotten licks).</p>
@@ -1432,7 +1439,7 @@ VIEWS.settings = async () => {
     S.settings = await api("/api/settings", {
       method: "PUT", body: {
         display: $("#sDisplay").value, range_low: lo, range_high: hi, key_order: $("#sOrder").value, my_steps: steps,
-        new_per_day: +$("#sNew").value, max_reviews: +$("#sMax").value, desired_retention: +$("#sRet").value,
+        new_per_day: +$("#sNew").value, max_reviews: +$("#sMax").value, focus_cap: Math.max(1, +$("#sFocus").value || 4), hold_new: $("#sHold").checked, desired_retention: +$("#sRet").value,
         tempo: +$("#sTempo").value, swing: +$("#sSwing").value / 100, lead_in: +$("#sLeadIn").value, reps_per_key: +$("#sReps").value,
         start_tempo: +$("#sStart").value, tempo_step: +$("#sStep").value, stay_in_key: $("#sStay").checked,
         play_lick: $("#sHear").checked, call_response: $("#sResp").checked, backing: $("#sBack").checked,
