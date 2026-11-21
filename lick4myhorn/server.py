@@ -139,6 +139,52 @@ def create_app(root: Path) -> FastAPI:
     async def align_works():
         return AL.list_works(lib.lib)
 
+    def _work_dir(work: str) -> Path:
+        base = (lib.lib / "works").resolve()
+        d = (base / work).resolve()
+        if not work or "/" in work or "\\" in work or d.parent != base or not d.is_dir():
+            raise HTTPException(404, "No such transcription")
+        return d
+
+    def _du(d: Path) -> int:
+        return sum(f.stat().st_size for f in d.rglob("*") if f.is_file())
+
+    @app.get("/api/works/disk")
+    async def works_on_disk():
+        """Every transcription folder under library/works, usable or not, with what is in it (the Transcribe tab's manager)."""
+        base = lib.lib / "works"
+        out, seen = [], {}
+        for d in sorted(base.glob("*")) if base.exists() else []:
+            if not d.is_dir():
+                continue
+            try:
+                fm = json.loads((d / "form.json").read_text()) if (d / "form.json").exists() else {}
+                src = json.loads((d / "source.json").read_text()) if (d / "source.json").exists() else {}
+            except (OSError, ValueError):
+                fm, src = {}, {}
+            m = re.search(r"(?:youtu\.be/|[?&]v=)([\w-]{6,})", src.get("url", ""))
+            vid = m.group(1) if m else None
+            engines = sorted(p.name for p in (d / "engines").glob("*") if (p / "raw.mid").exists()) if (d / "engines").exists() else []
+            edits = [f.stat().st_mtime for f in (d / "align.json", d / "form.json") if f.exists()]
+            out.append({"work": d.name, "title": fm.get("title", d.name), "artist": fm.get("artist", ""), "url": src.get("url", ""),
+                        "video": vid, "has_audio": (d / "audio.wav").exists(), "engines": engines,
+                        "has_form": (d / "form.json").exists(), "aligned": (d / "align.json").exists(),
+                        "mb": round(_du(d) / 1e6, 1), "changed": max(edits) if edits else d.stat().st_mtime})
+            if vid:
+                seen.setdefault(vid, []).append(d.name)
+        for w in out:
+            w["same_video_as"] = [n for n in seen.get(w["video"], []) if n != w["work"]] if w["video"] else []
+        return out
+
+    @app.delete("/api/align/{work}")
+    async def delete_work(work: str):
+        d = _work_dir(work)
+        if any(j.get("work") == work and j.get("state") not in ("done", "error") for j in transcriber.jobs.values()):
+            raise HTTPException(409, "A transcription of this song is still running. Wait for it to finish.")
+        shutil.rmtree(d)
+        _align.pop(work, None)
+        return {"deleted": work}
+
     @app.get("/api/align/{work}")
     async def align_get(work: str):
         return _guard(_aw(work).summary)
@@ -164,6 +210,35 @@ def create_app(root: Path) -> FastAPI:
     async def align_times(work: str, body: dict = Body(...)):
         w = _aw(work)
         _guard(w.set_times, body["times"])
+        return w.summary()
+
+    @app.get("/api/align/{work}/status")
+    async def align_status(work: str):
+        w = _aw(work)
+        return {"dirty": w.dirty(), "saved_at": w.state.get("saved_at"), "lines_cleared": bool(w.state.get("lines_cleared"))}
+
+    @app.post("/api/align/{work}/save")
+    async def align_save(work: str):
+        w = _aw(work)
+        w.save_version()
+        return w.summary()
+
+    @app.post("/api/align/{work}/revert")
+    async def align_revert(work: str):
+        w = _aw(work)
+        w.revert_to_saved()
+        return w.summary()
+
+    @app.post("/api/align/{work}/clear-lines")
+    async def align_clear_lines(work: str):
+        w = _aw(work)
+        w.clear_lines()
+        return w.summary()
+
+    @app.put("/api/align/{work}/tap-lines")
+    async def align_tap_lines(work: str, body: dict = Body(...)):
+        w = _aw(work)
+        _guard(w.set_tap_lines, body["lines"], body.get("start", 0))
         return w.summary()
 
     @app.post("/api/align/{work}/snap")
@@ -204,6 +279,16 @@ def create_app(root: Path) -> FastAPI:
     @app.post("/api/align/{work}/chords/detect")
     async def align_detect(work: str, body: dict = Body(...)):
         return _guard(_aw(work).detect_chart, body["title"], _charts())
+
+    @app.post("/api/align/{work}/chords/choruses")
+    async def align_choruses(work: str, body: dict = Body(...)):
+        return _guard(_aw(work).find_choruses, body["title"], _charts(), body["lines"])
+
+    @app.post("/api/align/{work}/chords/apply-choruses")
+    async def align_apply_choruses(work: str, body: dict = Body(...)):
+        w = _aw(work)
+        _guard(w.apply_choruses, body["title"], _charts(), int(body["transpose"]), body["lines"], int(body["start"]), int(body["count"]), int(body.get("tag", 0)))
+        return w.summary()
 
     @app.post("/api/align/{work}/chords/preview")
     async def align_preview(work: str, body: dict = Body(...)):
@@ -322,9 +407,12 @@ def create_app(root: Path) -> FastAPI:
         since = (datetime.now() - timedelta(days=max(1, min(days, 3650)))).strftime("%Y-%m-%d")
         buf = io.StringIO()
         w = csv.writer(buf)
-        w.writerow(["date", "section", "item", "done", "note"])
-        for r in sorted(lib.db.routine_log(since), key=lambda r: (r["day"], r["section"], r["text"])):
-            w.writerow([r["day"], r["section"], r["text"], "yes" if r["done"] else "no", r["note"]])
+        w.writerow(["session", "date", "section", "exercise_id", "exercise", "done", "note"])
+        rows = lib.db.routine_log("0000-01-01")   # session numbers count from your first practice day, whatever the export range
+        days = sorted({r["day"] for r in rows})
+        number = {d: i + 1 for i, d in enumerate(days)}
+        for r in sorted((r for r in rows if r["day"] >= since), key=lambda r: (r["day"], r["section"] or "", r["text"])):
+            w.writerow([number[r["day"]], r["day"], r["section"], r["item"], r["text"], "yes" if r["done"] else "no", r["note"]])
         return Response(buf.getvalue(), media_type="text/csv; charset=utf-8",
                         headers={"Content-Disposition": 'attachment; filename="licksmith-routine.csv"'})
 

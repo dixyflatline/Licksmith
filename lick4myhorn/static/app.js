@@ -103,19 +103,20 @@ const VIEWS = {};
 async function go(tab) {
   if (tab === "align") tab = "transcribe";  // the page used to be called Align
   if (tab === "today") tab = "licks";        // the Today tab is now called Licks
-  if (S.tab === "transcribe" && tab !== "transcribe" && window.__alCleanup) window.__alCleanup();
+  if (tab === "tunes") tab = "play";         // the Tunes tab is now called Play
+  if ((S.tab === "transcribe" || S.tab === "learn") && tab !== S.tab && window.__alCleanup) window.__alCleanup();
   if (tab !== "practice" && Band.sequencer.running) Band.sequencer.stop(true);
   S.tab = tab;
   $$("nav.tabs a").forEach(a => a.classList.toggle("active", a.dataset.tab === tab));
   main().innerHTML = `<div class="empty spin">Loading…</div>`;
   try { await (VIEWS[tab] || VIEWS.routine)(); }
   catch (e) { main().innerHTML = `<div class="card"><b>Something went wrong.</b><p class="muted">${esc(e.message)}</p></div>`; }
-  renderDock(tab);
 }
 window.addEventListener("hashchange", () => {
   let t = location.hash.slice(1) || "routine";
   if (t === "align") t = "transcribe";
   if (t === "today") t = "licks";
+  if (t === "tunes") t = "play";
   if (t !== S.tab) go(t);
 });
 // Back / forward. A tab is a history entry (its #hash); so is an open lick window ({lick, tab}) and a practice session
@@ -142,6 +143,7 @@ window.addEventListener("popstate", async e => {
   let t = location.hash.slice(1) || "routine";
   if (t === "align") t = "transcribe";
   if (t === "today") t = "licks";
+  if (t === "tunes") t = "play";
   if (t !== S.tab || modal) go(VIEWS[t] ? t : "routine");
 });
 function wireNavArrows() {
@@ -182,7 +184,7 @@ VIEWS.licks = async () => {
       <div class="tile"><div class="n">${t.done_today.length}</div><div class="l">practised today</div></div>
       <div class="grow"></div>
       <div class="row">${queue.length ? `<button class="primary big" id="startSession">Start session (${queue.length})</button>` :
-        `<div class="muted">Nothing due. <a href="#library">Pick a lick</a> or <a href="#tunes">fit licks to a tune</a>.</div>`}
+        `<div class="muted">Nothing due. <a href="#library">Pick a lick</a> or <a href="#play">fit licks to a tune</a>.</div>`}
         ${hard.licks.length ? `<button class="big" id="hardSession" title="Only the keys you marked hard, in the licks where you marked them">Practice hard keys (${hard.licks.length} lick${hard.licks.length === 1 ? "" : "s"})</button>` : ""}</div>
     </div>
     ${t.due.length ? `<h2>Due</h2><div class="lick-list">${t.due.map(l => row(l, "due")).join("")}</div>` : ""}
@@ -202,40 +204,6 @@ VIEWS.licks = async () => {
 /* ---------------------------------------------------------------- Routine (daily practice checklist) */
 const localDay = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const newId = () => "i" + Math.random().toString(36).slice(2, 9);
-
-// Routine sections that have a tab of their own: the section is worked on in that tab, with its checklist shown there.
-const ROUTINE_TABS = { licks: { label: "Licks", re: /lick/i }, tunes: { label: "Tunes", re: /tune/i } };
-const routineTabOf = sec => Object.keys(ROUTINE_TABS).find(t => sec.id === t) || Object.keys(ROUTINE_TABS).find(t => ROUTINE_TABS[t].re.test(sec.title));
-
-// The checklist of this tab's routine section, docked above the page; "Done" goes back to the Routine.
-async function renderDock(tab) {
-  const dock = $("#routineDock");
-  if (!dock) return;
-  if (!ROUTINE_TABS[tab]) { dock.innerHTML = ""; return; }
-  const day = localDay();
-  let R;
-  try { R = await api(`/api/routine?day=${day}`); } catch (e) { dock.innerHTML = ""; return; }
-  if (S.tab !== tab) return;                      // the user already moved on
-  const sec = R.sections.find(x => routineTabOf(x) === tab);
-  if (!sec) { dock.innerHTML = ""; return; }
-  const done = new Set(R.checked);
-  const draw = () => {
-    const c = sec.items.filter(i => done.has(i.id)).length;
-    dock.innerHTML = `<div class="card rdock"><div class="row"><h3 class="grow">${esc(sec.title)} <span class="small muted">${c}/${sec.items.length} today</span></h3>
-      <button class="primary" id="rDone">Done — back to Routine</button></div>
-      ${sec.items.map(i => `<div class="ritem ${done.has(i.id) ? "done" : ""}"><label class="check"><input type="checkbox" data-ditem="${esc(i.id)}" ${done.has(i.id) ? "checked" : ""}> <span>${esc(i.text)}</span></label></div>`).join("")
-        || `<div class="muted small">No items in this section.</div>`}</div>`;
-    $$("[data-ditem]", dock).forEach(cb => cb.onchange = async () => {
-      const id = cb.dataset.ditem;
-      cb.checked ? done.add(id) : done.delete(id);
-      draw();
-      try { await api("/api/routine/check", { body: { day, item: id, done: cb.checked } }); }
-      catch (e) { toast(e.message); }
-    });
-    $("#rDone", dock).onclick = () => { location.hash = "#routine"; };
-  };
-  draw();
-}
 
 VIEWS.routine = async () => {
   const day = localDay();
@@ -264,7 +232,7 @@ VIEWS.routine = async () => {
       ${R.sections.map(sec => {
         const c = sec.items.filter(i => done.has(i.id)).length;
         return `<div class="card rsec"><div class="row"><h3 class="grow">${esc(sec.title)}</h3>
-          <span class="small muted">${c}/${sec.items.length}</span>${routineTabOf(sec) ? `<a class="btn" href="#${routineTabOf(sec)}">Open ${ROUTINE_TABS[routineTabOf(sec)].label} →</a>` : ""}</div>
+          <span class="small muted">${c}/${sec.items.length}</span></div>
           ${sec.items.map(i => `<div class="ritem ${done.has(i.id) ? "done" : ""}">
             <div class="row"><label class="check grow"><input type="checkbox" data-item="${esc(i.id)}" ${done.has(i.id) ? "checked" : ""}> <span>${esc(i.text)}</span></label>
               <button class="ghost small" data-note="${esc(i.id)}" title="Add a comment">${notes[i.id] ? "💬" : "＋ note"}</button></div>
@@ -727,7 +695,7 @@ function nextLick() {
   main().innerHTML = `<h1>Session done</h1><p class="sub">${P.results.length} lick${P.results.length === 1 ? "" : "s"} rated.</p>
     <div class="lick-list">${P.results.map(x => `<div class="lick-item"><div class="grow">${esc(x.lick)}</div>
       <div>${names[x.rating]}</div><div class="muted">next in ${Math.max(1, Math.round(x.days))} d</div></div>`).join("")}</div>
-    <p><a class="btn" href="#licks">Back to Licks</a> <a class="btn" href="#tunes">Use them in a tune</a></p>`;
+    <p><a class="btn" href="#licks">Back to Licks</a> <a class="btn" href="#play">Use them in a tune</a></p>`;
 }
 
 document.addEventListener("keydown", e => {
@@ -1052,7 +1020,7 @@ VIEWS.import = async () => {
     if ($("#plFile").files[0]) fd.append("file", $("#plFile").files[0]);
     fd.append("text", $("#plText").value); fd.append("name", $("#plName").value);
     $("#plMsg").textContent = "Importing…";
-    try { const r = await api("/api/playlist", { body: fd }); $("#plMsg").innerHTML = `${r.imported} tunes imported. <a href="#tunes">Open Tunes</a>`; }
+    try { const r = await api("/api/playlist", { body: fd }); $("#plMsg").innerHTML = `${r.imported} tunes imported. <a href="#play">Open Play</a>`; }
     catch (e) { $("#plMsg").textContent = e.message; }
   };
 };
@@ -1125,10 +1093,10 @@ function renderImportPreview(p, target, banner = "") {
 }
 
 /* ---------------------------------------------------------------- Tunes */
-VIEWS.tunes = async () => {
+VIEWS.play = async () => {
   const tunes = await api("/api/tunes");
   main().innerHTML = `
-    <h1>Tunes</h1>
+    <h1>Play</h1>
     <p class="sub">${tunes.length} tunes from iReal. Pick one to see its harmony and fit your licks into it.</p>
     ${tunes.length ? "" : `<div class="card">No tunes yet. <a href="#import">Import an iReal playlist</a>.</div>`}
     <div class="tune-layout" ${tunes.length ? "" : 'style="display:none"'}>
