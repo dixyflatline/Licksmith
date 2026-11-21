@@ -1162,20 +1162,27 @@ VIEWS.play = async () => {
     ${tunes.length ? "" : `<div class="card">No tunes yet. <a href="#import">Import an iReal playlist</a>.</div>`}
     <div class="tune-layout" ${tunes.length ? "" : 'style="display:none"'}>
       <div class="card"><input id="tSearch" placeholder="Search tunes" style="width:100%;margin-bottom:8px">
-        <label class="check small"><input type="checkbox" id="tLearning"> Only tunes I'm learning</label>
+        <div class="row" style="gap:10px;margin-bottom:6px"><label class="check small"><input type="checkbox" id="tLearning"> Only tunes I'm learning</label>
+          <label class="check small" title="Show only tunes in this key (iReal's home key of the tune)">Key <select id="tKey"></select></label></div>
         <div class="tune-list" id="tList"></div></div>
       <div id="tDetail"><div class="empty">Choose a tune</div></div>
     </div>`;
   if (!tunes.length) return;
+  const PCS = ["C", "Db", "D", "Eb", "E", "F", "F#", "Gb", "G", "Ab", "A", "Bb", "B"];
+  const keyRank = k => { const m = /^([A-G][b#]?)(.*)$/.exec(k || ""); return (m && m[2].startsWith("-") ? 100 : 0) + (m ? PCS.indexOf(m[1]) : 99); };
+  const keyCount = {};
+  tunes.forEach(t => { if (t.key) keyCount[t.key] = (keyCount[t.key] || 0) + 1; });
+  $("#tKey").innerHTML = `<option value="">All keys</option>` + Object.keys(keyCount).sort((a, b) => keyRank(a) - keyRank(b))
+    .map(k => `<option value="${esc(k)}">${showSym(k.replace("-", "m"))} (${keyCount[k]})</option>`).join("");
   const draw = () => {
-    const q = $("#tSearch").value.toLowerCase();
+    const q = $("#tSearch").value.toLowerCase(), key = $("#tKey").value;
     $("#tList").innerHTML = tunes.filter(t => (!q || t.title.toLowerCase().includes(q) || (t.composer || "").toLowerCase().includes(q))
-      && (!$("#tLearning").checked || t.learning)).slice(0, 400)
+      && (!$("#tLearning").checked || t.learning) && (!key || t.key === key)).slice(0, 400)
       .map(t => `<div data-t="${esc(t.title)}" class="${S.fit && S.fit.title === t.title ? "sel" : ""}">${t.learning ? "★ " : ""}${esc(t.title)}
-        <span class="small muted">${esc(t.composer || "")}</span></div>`).join("");
+        <span class="small muted">${esc(t.composer || "")}${t.key ? " · " + showSym(t.key.replace("-", "m")) : ""}</span></div>`).join("");
     $$("#tList [data-t]").forEach(el => el.onclick = () => { openTune(el.dataset.t); $$("#tList div").forEach(x => x.classList.remove("sel")); el.classList.add("sel"); });
   };
-  $("#tSearch").oninput = draw; $("#tLearning").onchange = draw;
+  $("#tSearch").oninput = draw; $("#tLearning").onchange = draw; $("#tKey").onchange = draw;
   draw();
   if (S.fit && S.fit.title) openTune(S.fit.title, true);
 };
