@@ -473,7 +473,7 @@ def create_app(root: Path) -> FastAPI:
         pcs = sorted({int(p) % 12 for p in body.get("scope", [])})
         if not pcs:
             raise HTTPException(400, "A lick needs at least one key")
-        lib.db.x("INSERT INTO cards(lick_id, scope) VALUES(?,?) ON CONFLICT(lick_id) DO UPDATE SET scope=excluded.scope", (lick_id, json.dumps(pcs)))
+        lib.db.x("INSERT INTO cards(lick_id, scope) VALUES(?,?) ON CONFLICT(lick_id) DO UPDATE SET scope=excluded.scope, good_streak=0", (lick_id, json.dumps(pcs)))
         return _scope_info(lick_id)
 
     PRACTICE_CFG_KEYS = {"order": str, "reps": int, "hear": bool, "sound": str, "resp": bool, "back": bool,

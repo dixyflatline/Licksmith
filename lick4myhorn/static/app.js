@@ -385,6 +385,8 @@ async function loadPracticeLick() {
         ${d.comment ? `<div class="small muted" style="margin-top:6px">${esc(d.comment)}</div>` : ""}
         ${keysLine(d)}
         <label class="check small" title="Your set is the keys this lick has to be Good in before more keys join. Practising others does not change the rating."><input type="checkbox" id="pAll"> Also practise the other keys</label>
+        <button class="small" id="pPick" title="Choose which keys this lick is practised in">Choose keys…</button>
+        <div id="pPickBox" style="display:none;margin-top:8px"></div>
       </div>
       <div class="row">
         <select id="pOrder" title="Order of the keys">${Object.entries(S.meta.orders).map(([k, v]) => `<option value="${k}" ${k === C.order ? "selected" : ""}>${esc(v)}</option>`).join("")}</select>
@@ -445,6 +447,23 @@ async function loadPracticeLick() {
     renderKeys(); showKey(0); prefetch();
   };
   $("#pReps").addEventListener("change", meetsGood);
+  $("#pPick").onclick = () => {
+    const box = $("#pPickBox"), known = new Set((d.known_labels || []).map(k => k.key));
+    if (box.style.display === "") { box.style.display = "none"; return; }
+    const sel = new Set(d.scope || []);
+    box.style.display = "";
+    box.innerHTML = `<div class="small muted">Pick the keys to work on now (any number). The Good count starts again for the new set.</div>
+      <div class="row" style="flex-wrap:wrap;gap:6px;margin:6px 0">${d.keys.map(k => `<label class="check"><input type="checkbox" data-pc="${k.pc}" ${sel.has(k.pc) ? "checked" : ""}> ${esc(k.label)}${known.has(k.label) ? " ✓" : ""}</label>`).join("")}</div>
+      <button class="primary small" id="pPickSave">Use these keys</button> <span class="small muted">✓ = Good before</span>`;
+    $("#pPickSave").onclick = async () => {
+      const pcs = $$("#pPickBox [data-pc]").filter(c => c.checked).map(c => +c.dataset.pc);
+      if (!pcs.length) return toast("Pick at least one key");
+      Band.sequencer.stop(true);
+      await api(`/api/licks/${d.id}/scope`, { body: { scope: pcs } });
+      toast(`Working on ${d.keys.filter(k => pcs.includes(k.pc)).map(k => k.label).join(", ")}.`);
+      loadPracticeLick();
+    };
+  };
   $("#pOrder").onchange = async e => {
     Band.sequencer.stop(true);
     const dd = await api(`/api/licks/${d.id}?order=${e.target.value}`);
