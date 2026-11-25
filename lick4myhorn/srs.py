@@ -72,8 +72,10 @@ def good_def(settings: dict) -> dict:
 def key_rank(db: DB, lick_id: int, settings: dict) -> list[int]:
     """The order keys join a lick's set: the lick's own key, then your "my order" steps, then the cycle of 4ths."""
     from .licks import key_order
-    r = db.one("SELECT tonic_pc FROM licks WHERE id=?", (lick_id,))
-    return key_order(int(r["tonic_pc"] or 0), "mine", settings.get("my_steps") or (0, 5, 7, -2))
+    r = db.one("SELECT tonic_pc, mode FROM licks WHERE id=?", (lick_id,))
+    order = settings.get("key_order") or "mine"   # follows your default key order (random would keep changing the set, so it falls back)
+    return key_order(int(r["tonic_pc"] or 0), "mine" if order == "random" else order, settings.get("my_steps") or (0, 5, 7, -2),
+                     mode=r.get("mode") or "major")
 
 
 def lick_scope(db: DB, lick_id: int, settings: dict) -> dict:

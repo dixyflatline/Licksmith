@@ -496,7 +496,7 @@ class Library:
         order = order or st["key_order"]
         seed = int(datetime.now().strftime("%Y%m%d")) + lick_id
         out = []
-        for pc in L.key_order(lk["tonic_pc"], order, st["my_steps"], seed):
+        for pc in L.key_order(lk["tonic_pc"], order, st["my_steps"], seed, lk.get("mode", "major")):
             plan = L.transposition_plan(lk, pc, st)
             out.append({"pc": pc, "label": plan["label"], "concert": plan["concert_key"], "fits": plan["fits"],
                         "octaves": plan["octaves"]})

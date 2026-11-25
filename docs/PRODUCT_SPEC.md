@@ -239,7 +239,7 @@ A lick is reduced to a melodic shape: the interval from each note to the next pl
 
 Opened from Today/Library. Shows the lick in the current key and a strip of the 12 keys.
 
-- **Key order** (`key_order` setting): `mine` = original key, up a 4th, up a 5th, down a whole step, then the remaining keys by the cycle of 4ths; or plain cycle of 4ths/5ths, chromatic. `my_steps` default `[0, 5, 7, -2]` semitones.
+- **Key order** (`key_order` setting): `common` = the lick's own key, then the keys by how many standards use them (concert F/Dm, Eb/Cm, C/Am, Bb/Gm, G/Em, Ab/Fm, Db/Bbm, D/Bm, Gb/Ebm, E/C#m, B/G#m, A/F#m, from a count of about 1,000 Real Book tunes with each major key and its relative minor together; a minor lick moves between minor keys). It also decides the order keys join a lick's working set (see Good). `mine` = original key, up a 4th, up a 5th, down a whole step, then the remaining keys by the cycle of 4ths; or plain cycle of 4ths/5ths, chromatic. `my_steps` default `[0, 5, 7, -2]` semitones.
 - **Range**: each key's lick is shifted by whole octaves into the player's written range (`range_low` 54 = F♯3, `range_high` 84 = C6). If it cannot fit, that key is flagged.
 - **Cycle** (one "Play" pass): count-in (`lead_in` bars; side stick on every beat, accent on beat 1; default 1 bar, 0 allowed) → the lick → "your turn" (the same number of bars with only the band, when `call_response` is on) → repeat `reps_per_key` times (default 2) → move to the next key (unless `stay_in_key` keeps looping until the player moves on).
 - **Backing band** (`backing`, `backing_style`: `band` = piano + bass + drums, or `piano` = chords only): generated per chord symbol of the lick (§13).

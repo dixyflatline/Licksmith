@@ -577,6 +577,7 @@ def write_xml(sc: stream.Score, path: Path) -> Path:
 # --------------------------------------------------------------------------------------- keys
 ORDERS = {
     "mine": "My order (original, P4 up, P5 up, M2 down, then cycle of 4ths)",
+    "common": "Most common keys first (the lick's own key, then keys by how many standards use them)",
     "fourths": "Cycle of 4ths",
     "fifths": "Cycle of 5ths",
     "diatonic": "Diatonic (scale degrees of the original key, then cycle of 4ths)",
@@ -586,9 +587,17 @@ ORDERS = {
 }
 
 
-def key_order(original_pc: int, order: str = "mine", my_steps=(0, 5, 7, -2), seed: int | None = None) -> list[int]:
+# How many of ~1000 Real Book tunes sit in each key (a major key and its relative minor counted together), by concert major key:
+# F/Dm 231, Eb/Cm 197, C/Am 161, Bb/Gm 158, G/Em 96, Ab/Fm 90, Db/Bbm 32, D/Bm 13, Gb/Ebm 11, E/C#m 6, B/G#m 3, A/F#m 2
+COMMON_MAJOR_PCS = (5, 3, 0, 10, 7, 8, 1, 2, 6, 4, 11, 9)
+
+
+def key_order(original_pc: int, order: str = "mine", my_steps=(0, 5, 7, -2), seed: int | None = None, mode: str = "major") -> list[int]:
     o = original_pc % 12
-    if order == "fifths":
+    if order == "common":
+        shift = 3 if mode == "minor" else 0   # a minor lick moves between the minor keys that share a signature with those major keys
+        seq = [o] + [(m - shift) % 12 for m in COMMON_MAJOR_PCS if (m - shift) % 12 != o]
+    elif order == "fifths":
         seq = [(o + 7 * i) % 12 for i in range(12)]
     elif order == "chromatic":
         seq = [(o + i) % 12 for i in range(12)]
