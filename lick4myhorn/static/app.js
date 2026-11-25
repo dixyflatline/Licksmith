@@ -741,7 +741,7 @@ async function rate(r) {
     }
   });
   if (cleared.length) toast(`${cleared.map(i => P.keys[i].label).join(", ")} no longer marked hard.`, 4000);
-  P.results.push({ lick: P.lick.label, rating: r, days: res.in_days });
+  P.results.push({ id: P.lick.id, lick: P.lick.label, rating: r, days: res.in_days });
   toast(res.expanded_labels && res.expanded_labels.length ? `Good again: ${res.expanded_labels.join(", ")} joins your set (now ${res.scope_labels.join(", ")}). See it again tomorrow.`
     : res.shelved_until ? `Stuck: shelved until ${res.shelved_until}, cut back to ${res.scope_labels.join(", ")}.`
     : `Saved. Next review in ${Math.max(1, Math.round(res.in_days))} day${Math.round(res.in_days) > 1 ? "s" : ""}.`, 5000);
@@ -756,7 +756,8 @@ function nextLick() {
   main().innerHTML = `<h1>Session done</h1><p class="sub">${P.results.length} lick${P.results.length === 1 ? "" : "s"} rated.</p>
     <div class="lick-list">${P.results.map(x => `<div class="lick-item"><div class="grow">${esc(x.lick)}</div>
       <div>${names[x.rating]}</div><div class="muted">next in ${Math.max(1, Math.round(x.days))} d</div></div>`).join("")}</div>
-    <p><a class="btn" href="#licks">Back to Licks</a> <a class="btn" href="#play">Use them in a tune</a></p>`;
+    <p><a class="btn" href="#licks">Back to Licks</a> <a class="btn" href="#play" id="useTune" title="Fit these licks into a tune and drill them there">Drill them in ${esc(S.settings.drill_tune || "Autumn Leaves")}</a></p>`;
+  $("#useTune").onclick = () => { S.fit = { title: S.settings.drill_tune || "Autumn Leaves", tune: null, plan: null, placements: [] }; S.drillIds = P.results.map(x => x.id).filter(Boolean); if (!S.drillIds.length) S.drillIds = P.ids.slice(); };
 }
 
 document.addEventListener("keydown", e => {
@@ -1184,7 +1185,10 @@ VIEWS.play = async () => {
   };
   $("#tSearch").oninput = draw; $("#tLearning").onchange = draw; $("#tKey").onchange = draw;
   draw();
-  if (S.fit && S.fit.title) openTune(S.fit.title, true);
+  if (S.fit && S.fit.title) {
+    const ids = S.drillIds; S.drillIds = null;
+    openTune(S.fit.title, true).then(() => { if (ids) runFit(S.fit.title, ids); }).catch(e => toast(e.message));
+  }
 };
 
 async function openTune(title, keepPlan) {
@@ -1298,10 +1302,11 @@ function barMenu(b) {
   });
 }
 
-async function runFit(title) {
+async function runFit(title, onlyIds) {
   $("#fOut").innerHTML = `<div class="empty spin">Matching licks to the changes…</div>`;
   const plan = await api("/api/fit", { body: { title, gap_bars: +$("#fGap").value,
-    pool: [$("#fFavs").checked ? "favorites" : "", $("#fToday").checked ? "today" : ""].filter(Boolean) } });
+    only_ids: onlyIds || null,
+    pool: onlyIds ? null : [$("#fFavs").checked ? "favorites" : "", $("#fToday").checked ? "today" : ""].filter(Boolean) } });
   S.fit.plan = plan;
   S.fit.placements = plan.placements;
   drawChart();
@@ -1315,11 +1320,12 @@ async function drawFit() {
     <div class="card" style="margin-top:14px">
       <div class="row"><h3 class="grow">${F.placements.length} lick${F.placements.length === 1 ? "" : "s"} placed · ${nSpots} bar${nSpots === 1 ? "" : "s"} where something fits</h3>
         <button class="primary" id="fPlay">▶ Play with band</button>
+        <button id="fDemo" title="Hear the licks (including the minor versions) played once, then the band plays alone while you play them">▶ Demo, then my turn</button>
         <div class="slider small muted">Tempo <input type="range" id="fTempo" min="60" max="320" value="${S.settings.tempo}"> <b id="fTempoV">${S.settings.tempo}</b></div>
         <button id="fSave">Download MusicXML</button></div>
       ${F.placements.length ? `<table class="placements"><tr><th>Bar</th><th>Lick</th><th>Key</th><th></th></tr>
       ${F.placements.map((p, i) => `<tr><td>${p.bar}</td><td><select data-pi="${i}">${(F.plan.candidates[p.bar - 1] || [p]).map((c, j) =>
-        `<option value="${j}" ${c.lick_id === p.lick_id ? "selected" : ""}>${esc(c.label)}</option>`).join("")}</select></td>
+        `<option value="${j}" ${c.lick_id === p.lick_id && (c.variant || "") === (p.variant || "") ? "selected" : ""}>${esc(c.label)}</option>`).join("")}</select></td>
         <td>${esc(p.key)}${p.fits_range ? "" : ' <span class="warn">range</span>'}</td><td><button class="ghost" data-del="${i}">Remove</button></td></tr>`).join("")}</table>`
         : `<p class="muted">No lick fits this tune's changes yet. Licks fit where the chords match beat for beat — e.g. a 1-bar ii–V lick needs a bar with two chords.</p>`}
       <p class="small muted">Click a bar in the chart to place a different lick there. Empty bars are yours to improvise.</p>
@@ -1332,7 +1338,8 @@ async function drawFit() {
   });
   $$("[data-del]").forEach(b => b.onclick = () => { F.placements.splice(+b.dataset.del, 1); drawChart(); drawFit(); });
   $("#fTempo").oninput = e => $("#fTempoV").textContent = e.target.value;
-  $("#fPlay").onclick = playTune;
+  $("#fPlay").onclick = () => playTune(false);
+  $("#fDemo").onclick = () => playTune(true);
   $("#fSave").onclick = async () => {
     try {
       const r = await fetch("/api/fit/file", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -1348,15 +1355,19 @@ async function drawFit() {
   catch (e) { $("#fSheet").textContent = e.message; }
 }
 
-async function playTune() {
+async function playTune(demo) {
   const seq = Band.sequencer;
   if (seq.running) { seq.stop(); return; }
   const data = await api("/api/fit/play", { body: { title: S.fit.title, placements: S.fit.placements } });
-  $("#fPlay").textContent = "■ Stop";
+  const btn = $(demo ? "#fDemo" : "#fPlay");
+  btn.textContent = "■ Stop";
   seq.start({
     tempo: () => +($("#fTempo") || { value: S.settings.tempo }).value, swing: () => S.settings.swing,
-    next: n => ({ seq: data, leadIn: n === 0 ? S.settings.lead_in : 0, playLick: true, backing: S.settings.backing_style || "band", response: false, info: {} }),
-    onStop: () => { const b = $("#fPlay"); if (b) b.textContent = "▶ Play with band"; },
+    // demo mode alternates: a chorus with the licks played for you, then a chorus of band only for your turn
+    next: n => ({ seq: data, leadIn: n === 0 ? S.settings.lead_in : 0, playLick: demo ? n % 2 === 0 : true,
+      backing: S.settings.backing_style || "band", response: false, info: { turn: demo && n % 2 === 1 } }),
+    onCycle: info => { if (demo && $("#fDemo")) $("#fDemo").textContent = info.turn ? "■ Your turn…" : "■ Demo…"; },
+    onStop: () => { const a = $("#fPlay"), b = $("#fDemo"); if (a) a.textContent = "▶ Play with band"; if (b) b.textContent = "▶ Demo, then my turn"; },
   });
 }
 

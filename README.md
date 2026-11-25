@@ -64,6 +64,11 @@ solo" and type bar ranges like `17-20, 33-36`.
   where their chords match beat for beat, transposed and in range. Click any bar to choose
   another lick, play it with the band, and save a practice MusicXML with labels like
   "Chet Baker Tenderly (F)".
+  A major ii–V(–I) lick also gets a **minor version** (ii → m7♭5, V → 7♭9, I → m6; the notes a
+  half step below the new chord tones are lowered), so it fits minor ii–V–i bars. The end-of-session
+  button **Drill them in Autumn Leaves** (tune name: setting `drill_tune`) fits only the licks you just
+  practised into that tune (its major and minor ii–V–I), and **Demo, then my turn** plays one chorus
+  with the licks (including the minor versions) and the next with the band alone for you.
 - *Transcribe → Save / Revert / Clear bar lines*: changes are kept as you go; the floppy-disk Save button turns gold when something changed since the last saved version, Revert goes back to it, Clear bar lines forgets all lines (detected or by hand) so you can tap from scratch.
 - *Transcribe → Tap bar lines*: play the recording and press Enter on beat 1 of every bar, from before the solo if you like (not limited by the form's bar count); then say which tap is bar 1 of the form. Backspace undoes a tap, Space pauses/resumes, Esc finishes. Tapped lines outside the form stay on the timeline, dashed. After you finish tapping, the app matches the bass of every tapped bar against the iReal chart (all 12 keys, tolerant of odd bars, extra tag bars on the last chord, and stretches that are not the tune) and lists the choruses it found; you pick which one to transcribe, how many choruses, and the tag length (for example 32 chart bars + 6 Gm tag bars = 38-bar choruses). "Choose bar 1 by hand" is the fallback.
 - *Transcribe → Saved transcriptions on this computer*: lists every folder in `library/works` with its size, last change, whether you edited bars, and a warning when two folders come from the same YouTube video. Each has Open and Delete (with a confirmation). The bar editor also has a Delete button next to the song menu.

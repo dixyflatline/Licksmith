@@ -763,7 +763,7 @@ def create_app(root: Path) -> FastAPI:
     @app.post("/api/fit")
     async def fit(body: dict = Body(...)):
         try:
-            return lib.fit(body["title"], int(body.get("gap_bars", 0)), body.get("only_ids"), body.get("pool"))
+            return lib.fit(body["title"], int(body.get("gap_bars", 0)), body.get("only_ids"), body.get("pool"), bool(body.get("variants", True)))
         except KeyError:
             raise HTTPException(404, "No such tune")
 

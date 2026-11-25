@@ -609,7 +609,7 @@ class Library:
         return t
 
     def fit(self, title: str, gap_bars: int = 0, only_ids: list[int] | None = None,
-            pool: list[str] | None = None) -> dict:
+            pool: list[str] | None = None, variants: bool = True) -> dict:
         """pool: which licks may be used - "favorites" and/or "today" (today's exercise: due, new and
         already reviewed today). None or empty means all licks."""
         t = self.db.tune(title)
@@ -624,7 +624,7 @@ class Library:
                 td = srs.today(self.db, self.settings)
                 ok |= {r["id"] for r in td["due"]} | {r["id"] for r in td["new"]} | set(td["done_today"])
             rows = [r for r in rows if r["id"] in ok]
-        res = F.plan_tune(t, rows, self.settings, gap_bars=gap_bars, only_ids=set(only_ids) if only_ids else None)
+        res = F.plan_tune(t, rows, self.settings, gap_bars=gap_bars, only_ids=set(only_ids) if only_ids else None, variants=variants)
         res["tune"] = {k: t[k] for k in ("title", "composer", "style", "key", "ts", "bars")}
         return res
 
