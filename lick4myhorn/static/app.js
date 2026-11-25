@@ -748,6 +748,14 @@ async function rate(r) {
   nextLick();
 }
 
+const DRILL_TUNES = [
+  ["Autumn Leaves", "Major and minor ii–V–I in two key centers (relative major/minor)"],
+  ["Tune Up", "Major ii–V–I cascading down a whole step: Dm7 G7 Cmaj7 / Cm7 F7 Bbmaj7 / Bbm7 Eb7 Abmaj7"],
+  ["Solar", "Minor tonic plus major ii–V–Is down a whole step to Eb, Db and back"],
+  ["I Got Rhythm", "Rhythm changes: I–vi–ii–V turnarounds, the bridge's dominant cycle, and the tag"],
+  ["Oleo", "Rhythm changes at speed, with the same turnarounds and dominant bridge"],
+];
+
 function nextLick() {
   const P = S.practice;
   Band.sequencer.stop(true);
@@ -756,8 +764,15 @@ function nextLick() {
   main().innerHTML = `<h1>Session done</h1><p class="sub">${P.results.length} lick${P.results.length === 1 ? "" : "s"} rated.</p>
     <div class="lick-list">${P.results.map(x => `<div class="lick-item"><div class="grow">${esc(x.lick)}</div>
       <div>${names[x.rating]}</div><div class="muted">next in ${Math.max(1, Math.round(x.days))} d</div></div>`).join("")}</div>
-    <p><a class="btn" href="#licks">Back to Licks</a> <a class="btn" href="#play" id="useTune" title="Fit these licks into a tune and drill them there">Drill them in ${esc(S.settings.drill_tune || "Autumn Leaves")}</a></p>`;
-  $("#useTune").onclick = () => { S.fit = { title: S.settings.drill_tune || "Autumn Leaves", tune: null, plan: null, placements: [] }; S.drillIds = P.results.map(x => x.id).filter(Boolean); if (!S.drillIds.length) S.drillIds = P.ids.slice(); };
+    <p><a class="btn" href="#licks">Back to Licks</a></p>
+    <h3>Drill them in a tune</h3>
+    <p class="small muted">Fits only the licks you just practised, including minor versions of ii–V licks.</p>
+    <p>${DRILL_TUNES.map(([t, why]) => `<a class="btn" href="#play" data-drill="${esc(t)}" title="${esc(why)}">${esc(t)}</a>`).join(" ")}</p>`;
+  $$("[data-drill]").forEach(a => a.onclick = () => {
+    S.fit = { title: a.dataset.drill, tune: null, plan: null, placements: [] };
+    S.drillIds = P.results.map(x => x.id).filter(Boolean);
+    if (!S.drillIds.length) S.drillIds = P.ids.slice();
+  });
 }
 
 document.addEventListener("keydown", e => {
