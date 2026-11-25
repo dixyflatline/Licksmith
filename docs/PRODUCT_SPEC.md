@@ -336,7 +336,7 @@ Shows the chart in a grid, with **ii–V–I's and turnarounds marked** (`tune_s
 
 **Minor versions.** `fit.minor_variant(lick)` turns a major ii–V or ii–V–I lick into its minor twin: chords m7 → m7♭5, 7 → 7♭9, maj → m6; chord-relative 5th of ii, 9th and 3rd of V, 3rd and 7th of I drop a half step; same rhythm. Candidates and placements carry `variant: "minor"`; the label ends "(minor version)". `/api/fit` accepts `variants` (default true) and `only_ids`.
 
-**Drill in a tune.** The end-of-session buttons (`DRILL_TUNES` in app.js: Autumn Leaves, Tune Up, Solar, I Got Rhythm, Oleo) open the Play tab on that tune and runs the fit with `only_ids` = the licks just practised. **Demo, then my turn** alternates choruses: licks + band (demo), then band only (your turn), repeating.
+**Drill in a tune.** The end-of-session buttons (`DRILL_TUNES` in app.js: Autumn Leaves, Tune Up, Solar, I Got Rhythm, Oleo, Blue Bossa, All The Things You Are) open the Play tab on that tune and runs the fit with `only_ids` = the licks just practised. **Demo, then my turn** alternates choruses: licks + band (demo), then band only (your turn), repeating.
 
 `fits_at(lick, tune, start_beat)`: a lick fits at a bar when, after transposing by some semitone shift 0–11, **every chord in the lick matches the tune's chord over the same beats** (same root, same chord family: major / minor / dominant / half-diminished / diminished), up to the beat where the lick's last note ends. `candidates` returns, per bar index, candidates sorted best first (favourites and licks being learned first; `pool` = favourites and/or today's exercise). `plan_tune` walks the tune and places a lick wherever one fits.
 

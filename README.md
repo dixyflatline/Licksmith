@@ -66,7 +66,7 @@ solo" and type bar ranges like `17-20, 33-36`.
   "Chet Baker Tenderly (F)".
   A major ii–V(–I) lick also gets a **minor version** (ii → m7♭5, V → 7♭9, I → m6; the notes a
   half step below the new chord tones are lowered), so it fits minor ii–V–i bars. The end-of-session
-  buttons **Drill them in a tune** (Autumn Leaves, Tune Up, Solar, I Got Rhythm, Oleo) fits only the licks you just
+  buttons **Drill them in a tune** (Autumn Leaves, Tune Up, Solar, I Got Rhythm, Oleo, Blue Bossa, All The Things You Are) fits only the licks you just
   practised into that tune (its major and minor ii–V–I), and **Demo, then my turn** plays one chorus
   with the licks (including the minor versions) and the next with the band alone for you.
 - *Transcribe → Save / Revert / Clear bar lines*: changes are kept as you go; the floppy-disk Save button turns gold when something changed since the last saved version, Revert goes back to it, Clear bar lines forgets all lines (detected or by hand) so you can tap from scratch.

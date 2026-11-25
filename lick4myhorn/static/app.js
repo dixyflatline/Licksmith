@@ -754,6 +754,8 @@ const DRILL_TUNES = [
   ["Solar", "Minor tonic plus major ii–V–Is down a whole step to Eb, Db and back"],
   ["I Got Rhythm", "Rhythm changes: I–vi–ii–V turnarounds, the bridge's dominant cycle, and the tag"],
   ["Oleo", "Rhythm changes at speed, with the same turnarounds and dominant bridge"],
+  ["Blue Bossa", "Short minor ii–V–i, then a major ii–V a half step up"],
+  ["All The Things You Are", "ii–V–Is that move through many key centers"],
 ];
 
 function nextLick() {
