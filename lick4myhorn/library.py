@@ -496,7 +496,7 @@ class Library:
         order = order or st["key_order"]
         seed = int(datetime.now().strftime("%Y%m%d")) + lick_id
         out = []
-        for pc in L.key_order(lk["tonic_pc"], order, st["my_steps"], seed):
+        for pc in L.key_order(lk["tonic_pc"], order, st["my_steps"], seed, lk.get("mode", "major")):
             plan = L.transposition_plan(lk, pc, st)
             out.append({"pc": pc, "label": plan["label"], "concert": plan["concert_key"], "fits": plan["fits"],
                         "octaves": plan["octaves"]})
@@ -609,7 +609,7 @@ class Library:
         return t
 
     def fit(self, title: str, gap_bars: int = 0, only_ids: list[int] | None = None,
-            pool: list[str] | None = None) -> dict:
+            pool: list[str] | None = None, variants: bool = True) -> dict:
         """pool: which licks may be used - "favorites" and/or "today" (today's exercise: due, new and
         already reviewed today). None or empty means all licks."""
         t = self.db.tune(title)
@@ -624,7 +624,7 @@ class Library:
                 td = srs.today(self.db, self.settings)
                 ok |= {r["id"] for r in td["due"]} | {r["id"] for r in td["new"]} | set(td["done_today"])
             rows = [r for r in rows if r["id"] in ok]
-        res = F.plan_tune(t, rows, self.settings, gap_bars=gap_bars, only_ids=set(only_ids) if only_ids else None)
+        res = F.plan_tune(t, rows, self.settings, gap_bars=gap_bars, only_ids=set(only_ids) if only_ids else None, variants=variants)
         res["tune"] = {k: t[k] for k in ("title", "composer", "style", "key", "ts", "bars")}
         return res
 

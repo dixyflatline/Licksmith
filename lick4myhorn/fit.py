@@ -16,7 +16,7 @@ import math
 from music21 import expressions, harmony, layout, metadata, meter, note, stream, tempo
 
 from . import licks as L
-from .analysis import bar_chord_offsets, chart_timeline, chord_spans, tune_sections
+from .analysis import bar_chord_offsets, chart_timeline, chord_spans, parse_chord, tune_sections
 from .chords import to_music21
 from .srs import state_of
 
@@ -63,12 +63,79 @@ def fits_at(lick_spans, lick_end, tune_spans, start_beat) -> int | None:
     return shift
 
 
-def candidates(tune: dict, lick_rows: list[dict], settings: dict) -> dict[int, list[dict]]:
+def _minor_map(lk: dict):
+    """For a major ii-V(-I) lick, the spans and a function (offset, midi) -> midi that gives its minor ii-V(-i) version, or None
+    when the lick is not that shape. ii becomes half-diminished (the 5th drops to b5), V gets b9 and b13, I becomes minor
+    (the 3rd drops to b3 and a major 7th to b7)."""
+    d = lk["data"]
+    spans = chord_spans(d["chords"], d["length"])
+    qs = [s["q"] for s in spans]
+    if qs not in (["min", "dom"], ["min", "dom", "maj"]):
+        return None
+    if (spans[1]["pc"] - spans[0]["pc"]) % 12 != 5 or (len(spans) == 3 and (spans[2]["pc"] - spans[1]["pc"]) % 12 != 5):
+        return None
+    lower = {0: {7}, 1: {2, 9}, 2: {4, 11}}   # scale degrees (semitones above the chord root) that drop a half step
+
+    def fn(off: float, midi: int) -> int:
+        for i, s in enumerate(spans):
+            if s["start"] - 1e-6 <= off < s["end"] - 1e-6 or (i == len(spans) - 1 and off >= s["start"] - 1e-6):
+                return midi - 1 if (midi - s["pc"]) % 12 in lower[i] else midi
+        return midi
+    return spans, fn
+
+
+def minor_variant(lk: dict) -> dict | None:
+    """The minor-key version of a major ii-V(-I) lick (same rhythm, a few notes lowered), or None."""
+    mm = _minor_map(lk)
+    if mm is None:
+        return None
+    spans, fn = mm
+    v = copy.deepcopy(lk)
+    d = v["data"]
+    d["notes"] = [[o, du, fn(o, m)] for o, du, m in d["notes"]]
+    d["graces"] = [[o, fn(o, m)] for o, m in d.get("graces", [])]
+    root = lambda sym: re.match(r"^[A-G][b#]?", sym).group(0)
+    new = []
+    for i, s in enumerate(spans):
+        new.append([s["start"], root(s["sym"]) + ["m7b5", "7b9", "m6"][i]])
+    d["chords"] = new
+    v["variant"] = "minor"
+    v["mode"] = "minor"
+    v["tonic_name"] = L.key_name(v["tonic_pc"], "minor")
+    v["function"] = "Minor II-V-I" if len(spans) == 3 else "Minor II-V"
+    return v
+
+
+def _alter_score_minor(base, lk: dict) -> None:
+    """The same change as minor_variant, on the notated lick (music21 score, concert pitch)."""
+    mm = _minor_map(lk)
+    if mm is None:
+        return
+    _, fn = mm
+    for n in base.recurse().getElementsByClass(note.Note):
+        off = float(n.getOffsetInHierarchy(base))
+        new = fn(off, n.pitch.midi)
+        if new != n.pitch.midi:
+            n.pitch.midi = new
+            n.pitch.spelledWithFlats = True
+
+
+def resolve(lick_lookup, p: dict) -> dict:
+    """The lick of a placement: the original, or its minor version when the placement says so."""
+    lk = lick_lookup(p["lick_id"])
+    if p.get("variant") == "minor":
+        return minor_variant(lk) or lk
+    return lk
+
+
+def candidates(tune: dict, lick_rows: list[dict], settings: dict, variants: bool = True) -> dict[int, list[dict]]:
     """{bar index (0-based): [candidate, ...]} sorted best first."""
     bpb = tune["ts"][0] if tune.get("ts") else 4
     tune_spans = chart_timeline(tune["bars"], bpb)
     n_bars = len(tune["bars"])
     out: dict[int, list[dict]] = {}
+    if variants:
+        lick_rows = lick_rows + [v for v in (minor_variant(r) for r in lick_rows) if v]
     for lk in lick_rows:
         if lk["data"]["ts"][0] != bpb:
             continue
@@ -85,7 +152,8 @@ def candidates(tune: dict, lick_rows: list[dict], settings: dict) -> dict[int, l
             out.setdefault(b, []).append({"lick_id": lk["id"], "number": lk["number"], "bar": b + 1,
                                           "bars": lick_bars, "target_pc": target, "key": plan["label"],
                                           "fits_range": plan["fits"], "score": _score(lk, plan, lick_bars),
-                                          "function": lk["function"], "label": lick_label(lk)})
+                                          "function": lk["function"], "variant": lk.get("variant"),
+                                          "label": lick_label(lk) + (" (minor version)" if lk.get("variant") else "")})
     for b in out:
         out[b].sort(key=lambda c: -c["score"])
     return out
@@ -117,7 +185,7 @@ def lick_label(lk: dict) -> str:
 
 
 def plan_tune(tune: dict, lick_rows: list[dict], settings: dict, gap_bars: int = 1,
-              only_ids: set[int] | None = None, seed: int | None = None) -> dict:
+              only_ids: set[int] | None = None, seed: int | None = None, variants: bool = True) -> dict:
     """Walk through the tune placing a lick at each spot where one fits.
 
     The lick at each spot is drawn at random, weighted by its score (favorites and licks you are
@@ -127,7 +195,7 @@ def plan_tune(tune: dict, lick_rows: list[dict], settings: dict, gap_bars: int =
 
     rng = random.Random(seed)
     rows = [r for r in lick_rows if only_ids is None or r["id"] in only_ids]
-    cands = candidates(tune, rows, settings)
+    cands = candidates(tune, rows, settings, variants)
     placements = []
     used: dict[int, int] = {}
     b = 0
@@ -154,9 +222,11 @@ def practice_score(tune: dict, placements: list[dict], lick_lookup, settings: di
     den = tune["ts"][1] if tune.get("ts") else 4
     by_bar: dict[int, tuple[dict, int, list]] = {}
     for p in sorted(placements, key=lambda p: p["bar"]):
-        lk = lick_lookup(p["lick_id"])
+        lk = resolve(lick_lookup, p)
         plan = L.transposition_plan(lk, p["target_pc"], settings)
         base = L.load_lick_score(lk["_path"])
+        if p.get("variant") == "minor":
+            _alter_score_minor(base, lick_lookup(p["lick_id"]))
         t = L.transpose_score(base, plan["interval"], plan["octaves"])
         ms = list(t.parts[0].getElementsByClass(stream.Measure))
         for k in range(p["bars"]):
@@ -207,7 +277,7 @@ def play_data(tune: dict, placements: list[dict], lick_lookup, settings: dict) -
     bpb = tune["ts"][0] if tune.get("ts") else 4
     notes, chords, graces = [], [], []
     for p in placements:
-        lk = lick_lookup(p["lick_id"])
+        lk = resolve(lick_lookup, p)
         plan = L.transposition_plan(lk, p["target_pc"], settings)
         td = L.transposed_data(lk, plan)
         base = (p["bar"] - 1) * bpb

@@ -143,6 +143,10 @@ DEFAULTS = {
     "my_steps": [0, 5, 7, -2],     # original, P4 up, P5 up, M2 down (then cycle of 4ths)
     "new_per_day": 2,
     "max_reviews": 20,
+    # what "Good" means, and what happens next (see srs.GOOD_DEF)
+    "good_def": {"clean_passes": 2, "min_tempo": 0, "sessions": 2, "starter_keys": 2, "add_keys": 1, "stuck_after": 4, "shelve_days": 21},
+    "focus_cap": 4,                # hard/again licks in one day's plan (about what an hour of practice holds)
+    "hold_new": True,              # no new licks while any lick is still rated hard/again
     "desired_retention": 0.9,
     "tempo": 120,
     "start_tempo": 60,             # lick practice: first tempo in a key you have not practiced yet
@@ -186,7 +190,20 @@ class DB:
         cols = {r[1] for r in self.conn.execute("PRAGMA table_info(tunes)")}
         if "raw" not in cols:  # added after the first release
             self.conn.execute("ALTER TABLE tunes ADD COLUMN raw TEXT DEFAULT ''")
+        for tbl in ("routine_checks", "routine_notes"):   # each tick/note keeps the wording of the exercise as it was that day
+            have = {r[1] for r in self.conn.execute(f"PRAGMA table_info({tbl})")}
+            for col in ("section", "text"):
+                if col not in have:
+                    self.conn.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} TEXT")
+        for tbl, col, typ in (("cards", "chosen", "INTEGER DEFAULT 0"), ("reviews", "planned", "INTEGER"),
+                              ("cards", "scope", "TEXT"), ("cards", "known", "TEXT"), ("cards", "good_streak", "INTEGER DEFAULT 0"),
+                              ("cards", "hard_streak", "INTEGER DEFAULT 0"), ("cards", "shelved_until", "TEXT"),
+                              ("reviews", "scope", "TEXT"), ("reviews", "good_def", "TEXT")):
+            have = {r[1] for r in self.conn.execute(f"PRAGMA table_info({tbl})")}
+            if col not in have:   # chosen: a hard/again lick you picked yourself; planned: the lick was in the day's plan when reviewed
+                self.conn.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} {typ}")
         self.conn.commit()
+        self._backfill_routine_text()
 
     # ------------------------------------------------------------------ helpers
     def q(self, sql: str, args=()) -> list[dict]:
@@ -240,12 +257,24 @@ class DB:
             out.append({"id": sid, "title": str(sec.get("title", "")).strip() or "Section", "items": items})
         return out
 
+    def _routine_names(self) -> dict:
+        return {it["id"]: (sec["title"], it["text"]) for sec in self.routine() for it in sec["items"]}
+
+    def _backfill_routine_text(self) -> None:
+        names = self._routine_names()
+        for tbl in ("routine_checks", "routine_notes"):
+            for r in self.q(f"SELECT day, item FROM {tbl} WHERE text IS NULL"):
+                if r["item"] in names:
+                    self.conn.execute(f"UPDATE {tbl} SET section=?, text=? WHERE day=? AND item=?", (*names[r["item"]], r["day"], r["item"]))
+        self.conn.commit()
+
     def routine_checked(self, day: str) -> list[str]:
         return [r["item"] for r in self.q("SELECT item FROM routine_checks WHERE day=?", (day,))]
 
     def routine_set(self, day: str, item: str, done: bool) -> None:
         if done:
-            self.conn.execute("INSERT OR IGNORE INTO routine_checks(day, item) VALUES(?,?)", (day, item))
+            sec, text = self._routine_names().get(item, (None, None))
+            self.conn.execute("INSERT OR IGNORE INTO routine_checks(day, item, section, text) VALUES(?,?,?,?)", (day, item, sec, text))
         else:
             self.conn.execute("DELETE FROM routine_checks WHERE day=? AND item=?", (day, item))
         self.conn.commit()
@@ -256,23 +285,29 @@ class DB:
     def routine_note_set(self, day: str, item: str, note: str) -> None:
         note = note.strip()
         if note:
-            self.conn.execute("INSERT OR REPLACE INTO routine_notes(day, item, note) VALUES(?,?,?)", (day, item, note))
+            sec, text = self._routine_names().get(item, (None, None))
+            self.conn.execute("INSERT OR REPLACE INTO routine_notes(day, item, note, section, text) VALUES(?,?,?,?,?)", (day, item, note, sec, text))
         else:
             self.conn.execute("DELETE FROM routine_notes WHERE day=? AND item=?", (day, item))
         self.conn.commit()
 
     def routine_log(self, since: str) -> list[dict]:
-        """Every tick and note since a day, newest first, with the section and item text they belong to."""
-        names = {it["id"]: (sec["title"], it["text"]) for sec in self.routine() for it in sec["items"]}
+        """Every tick and note since a day, newest first. Section and exercise text are the wording saved when the tick or note was
+        made (so renaming "Long tones" to "Long tones, half-note steps up" next week does not rewrite last week), falling back to the
+        current checklist for old rows; items later deleted from the checklist keep their history."""
+        names = self._routine_names()
         rows: dict = {}
-        for r in self.q("SELECT day, item FROM routine_checks WHERE day>=?", (since,)):
-            rows[(r["day"], r["item"])] = {"day": r["day"], "item": r["item"], "done": True, "note": ""}
-        for r in self.q("SELECT day, item, note FROM routine_notes WHERE day>=?", (since,)):
-            rows.setdefault((r["day"], r["item"]), {"day": r["day"], "item": r["item"], "done": False})["note"] = r["note"]
+        for r in self.q("SELECT day, item, section, text FROM routine_checks WHERE day>=?", (since,)):
+            rows[(r["day"], r["item"])] = {"day": r["day"], "item": r["item"], "done": True, "note": "", "section": r["section"], "text": r["text"]}
+        for r in self.q("SELECT day, item, note, section, text FROM routine_notes WHERE day>=?", (since,)):
+            row = rows.setdefault((r["day"], r["item"]), {"day": r["day"], "item": r["item"], "done": False, "section": r["section"], "text": r["text"]})
+            row["note"] = r["note"]
         out = []
         for row in rows.values():
-            if row["item"] in names:
-                row["section"], row["text"] = names[row["item"]]
+            sec, text = names.get(row["item"], (None, None))
+            row["section"] = row["section"] or sec
+            row["text"] = row["text"] or text
+            if row["text"]:
                 out.append(row)
         return sorted(out, key=lambda r: r["day"], reverse=True)
 

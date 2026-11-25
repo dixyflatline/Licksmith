@@ -49,7 +49,7 @@ solo" and type bar ranges like `17-20, 33-36`.
 
 **Pages.**
 
-- *Routine* (landing page): your daily practice checklist. "Learn licks" opens the Licks tab and "Learn tunes" opens the Tunes tab, each showing its own checklist with a "Done" button back to the Routine.
+- *Routine* (landing page): your daily practice checklist. The checklist lives only on the Routine page, with no shortcut buttons; the Licks and Play tabs are one click away in the nav.
 - *Licks* (was Today): reviews that are due, then new licks (2 a day by default, favorites first).
 - *Practice*: the lick in each key, in your key order. Play runs a count-in, the lick, then
   the same bars with only the band so you play it back; it moves to the next key after N
@@ -60,11 +60,19 @@ solo" and type bar ranges like `17-20, 33-36`.
   tags, or download the 12-key sheet.
 - *Import*: lick sheets and solos (MusicXML), and iReal playlists (Share › HTML, or paste the
   `irealb://` link).
-- *Tunes*: the chart with its ii–V–I's and turnarounds marked. "Fit my licks" places licks
+- *Play* (formerly Tunes): the chart with its ii–V–I's and turnarounds marked. "Fit my licks" places licks
   where their chords match beat for beat, transposed and in range. Click any bar to choose
   another lick, play it with the band, and save a practice MusicXML with labels like
   "Chet Baker Tenderly (F)".
-- *Learn* (learn by ear): pick a song you transcribed and a stretch of bars (click a bar, then another). The stretch loops as the recording or as MIDI, from 40% to 100% speed without changing pitch, and an optional silent "your turn" (with a soft click) follows. It has none of the transcribing tools; the bar lines come from the Transcribe tab.
+  A major ii–V(–I) lick also gets a **minor version** (ii → m7♭5, V → 7♭9, I → m6; the notes a
+  half step below the new chord tones are lowered), so it fits minor ii–V–i bars. The end-of-session
+  buttons **Drill them in a tune** (Autumn Leaves, Tune Up, Solar, I Got Rhythm, Oleo, Blue Bossa, All The Things You Are) fits only the licks you just
+  practised into that tune (its major and minor ii–V–I), and **Demo, then my turn** plays one chorus
+  with the licks (including the minor versions) and the next with the band alone for you.
+- *Transcribe → Save / Revert / Clear bar lines*: changes are kept as you go; the floppy-disk Save button turns gold when something changed since the last saved version, Revert goes back to it, Clear bar lines forgets all lines (detected or by hand) so you can tap from scratch.
+- *Transcribe → Tap bar lines*: play the recording and press Enter on beat 1 of every bar, from before the solo if you like (not limited by the form's bar count); then say which tap is bar 1 of the form. Backspace undoes a tap, Space pauses/resumes, Esc finishes. Tapped lines outside the form stay on the timeline, dashed. After you finish tapping, the app matches the bass of every tapped bar against the iReal chart (all 12 keys, tolerant of odd bars, extra tag bars on the last chord, and stretches that are not the tune) and lists the choruses it found; you pick which one to transcribe, how many choruses, and the tag length (for example 32 chart bars + 6 Gm tag bars = 38-bar choruses). "Choose bar 1 by hand" is the fallback.
+- *Transcribe → Saved transcriptions on this computer*: lists every folder in `library/works` with its size, last change, whether you edited bars, and a warning when two folders come from the same YouTube video. Each has Open and Delete (with a confirmation). The bar editor also has a Delete button next to the song menu.
+- *Learn* (learn by ear): the Transcribe tab's bar cards for a song you transcribed (select any run of adjacent bars by clicking the card headers, chorus and bar number, waveform / square-wave play buttons, score with chords, note editing with all its keys, same colours, Space = start/stop), with a loop controller on top: the ticked bars play as the recording or as MIDI, a draggable tempo slider (shown in BPM; the recording slows without changing pitch, and the clicks and your turn follow the same steady tempo), then an optional silent "your turn" with a soft click. Clear selection button, or click the empty space beside the cards, unticks every bar. No transcription model, chord import, tempo/key/bars, transcribe-again or waveform.
 - *Progress*: licks known / learning / lapsed, practice per day, upcoming reviews and the keys you
   marked hard.
 - *Settings*: B♭ or concert display, written range (default F♯3–C6), key order (default

@@ -116,7 +116,7 @@ All paths are resolved relative to the project root so the whole folder can move
 
 ### 4.2 Lick
 
-A lick is 1–4 bars (the library accepts any short fragment; the transcribe page sends 1–3 bars). Fields (SQLite `licks` table):
+A lick is 1–4 bars (the library accepts any short fragment; the transcribe page sends 1–4 bars). Fields (SQLite `licks` table):
 
 | Column | Meaning |
 |---|---|
@@ -157,7 +157,7 @@ A **work** is a folder `library/works/<slug>/` holding one recording and everyth
 
 Single page. Header: brand "Lick**4**MyHorn" (the 4 in the accent colour), back/forward arrow buttons (own history stack), tabs, spacer, **Concert pitch** checkbox.
 
-Tabs, in order: **Routine, Learn, Licks, Tunes, Progress, Library, Import, Transcribe, Settings**. Routine is the landing page. Hash routing (`#routine`, `#licks`, `#library`, `#transcribe`, …); the old `#today` hash opens Licks. The Routine sections "Learn licks" and "Learn tunes" have an "Open Licks/Tunes" button; the Licks and Tunes tabs show that section's checklist above the page, with a "Done — back to Routine" button. Opening a lick or a tune pushes a history entry so the back arrow returns to the previous view.
+Tabs, in order: **Routine, Learn, Licks, Play, Progress, Library, Import, Transcribe, Settings**. Routine is the landing page. Hash routing (`#routine`, `#licks`, `#library`, `#transcribe`, …); the old `#today` hash opens Licks. The Routine page has no "Open" buttons; the Play tab's tune list can be filtered by the tune's home key (a Key menu listing the keys present, with counts; each row shows its key) as well as by search and "learning" (hash `#play`; formerly Tunes, the old `#tunes` hash still redirects) and Licks have no checklist; the checklist lives only on the Routine page. **History keeps the wording of the day.** Each tick and note stores the section and exercise text as it was when you made it, so editing the routine later ("Long tones" → "Long tones, half note up") never rewrites past days, and exercises deleted from the checklist keep their history. **Export CSV** (`/api/routine/export.csv`) has one row per exercise per practice day: `session` (number of the practice day, counted from your first), `date`, `section`, `exercise_id` (stable, groups variations of the same exercise), `exercise` (wording that day), `done`, `note` (free text). Opening a lick or a tune pushes a history entry so the back arrow returns to the previous view.
 
 Visual style: dark theme, brass/gold accent (`#d9a441`-like), red `--again` for errors, panels with 1px lines and 8px radius, monospace for chord text. Layout is responsive: 4-column bar grid collapses to 2 columns below 900 px.
 
@@ -169,11 +169,39 @@ A generic `api(path, opts)` helper: JSON in/out; non-2xx responses throw an Erro
 
 ### 5.1 Learn tab (learn by ear)
 
-`static/ear.js`, `VIEWS.learn`, second tab after Routine. A song menu (works with audio), a strip of all bars (click one to start a stretch, another to end it, either order; or type "from bar / to bar"), and a transport: Play (space), Sound (recording or MIDI), Speed 40-100% (`audio.playbackRate` with pitch preserved; MIDI note times are scaled), Listen 1-4 times, then an optional **Your turn** (silence of the same length, with soft clicks on the beats when Click is on) and an optional one-bar count-in. It loops until stopped; changing the bars or any option takes effect at the next round. The bar playing is outlined yellow, the chosen stretch is red. Uses only the bar lines (`times`) and notes already saved by the Transcribe tab; it has no transcription, chord, tempo or waveform controls. Setup is remembered in the browser (`earSetup`).
+`static/ear.js` (`VIEWS.learn`, second tab after Routine) is a loop controller around the real Transcribe cards: it calls `alignOpen(work, works, {learn: ctl})` in `static/align.js`. In that mode align.js renders the same bar cards (click-to-select of any number of adjacent bars (no checkbox), Chorus #/Bar #, a waveform button (recording) and a square-wave button (MIDI) per card, labelled "ch 1 - bar 3", score with chords, note selection/editing with every shortcut, undo/redo, locked bars, same colours: picked = red, playing bar = yellow) and hides everything marked `.al-tl-only`: transcription model select, import chords, tempo/key/bars, transcribe again, waveform timeline, export, zoom/snap/nudge. The song menu stays. Space and the card buttons are routed to the controller (`ctl.toggle`, `ctl.playSpan`).
+
+Layout of the top box: row 1 = song menu, Sound, Listen ×, Your turn, Click, Count-in; row 2 = Play, tempo slider, Clear selection, Undo, Redo (gold, labelled). Controller: Sound (recording or MIDI), Tempo slider in BPM (30–120% of the song's average tempo from its bar lines; `audio.playbackRate`, pitch preserved; MIDI note times scaled by `A.rate`), Listen 1-4 times, optional **Your turn** (silence the length of the bars at the slider tempo, steady soft clicks on every beat when Click is on, independent of the recording's uneven bar lines) and optional one-bar count-in right before each turn (the first bar flashes on each click) right before each of your turns. It loops until stopped; changing bars or options takes effect on the next round. Pressing waveform / square-wave play buttons on a card loops that card's span. Nothing is selected when the tab opens; Play / Space with no selection does nothing but a hint. The waveform and square-wave buttons on a card (or the selected bars, if the card is inside the selection) play once at the tempo slider and never start the loop; when they finish, the cursor and highlight return to the first bar played; the loop does the same after each listen. A **Clear selection** button, or a click on the blank space beside or between the cards (outside the cards), unticks every bar (`A.clearPick`). The ticked bars, song and options are remembered in the browser (`earSetup`).
+
+### 5.4 Save, Revert and Clear bar lines (Transcribe tab)
+
+Every change is still kept on disk as it is made (`align.json`), so nothing is lost if the page closes. On top of that there is a **saved version**: the toolbar has a floppy-disk Save button that is dim when the transcription equals the saved version and gold (outlined) when bar lines or edited bars have changed since (`dirty` in the summary, from comparing `_snap()` with `state["saved"]`; works that existed before this feature start with their current state as the saved one). **Save** (`POST /api/align/{work}/save`) makes the current state the saved version; **Revert** (`/revert`, with a confirm) puts bar lines and edited bars back to it; leaving or reloading the page with unsaved changes asks for confirmation. `GET /api/align/{work}/status` gives `dirty`, `saved_at`, `lines_cleared` cheaply; the page refreshes it after every change. The Learn tab opens the working version, not only the saved one.
+
+**Clear bar lines** (`POST /clear-lines`, with a confirm) forgets every bar line, whether detected or dragged, and the tapped lines, so you can tap from scratch: the timeline shows no form lines (a hint instead) until you tap and apply or edit lines; edited notes stay. While tapping, and while choosing bar 1, the form's old lines are hidden so only the taps show. All three are undoable (the snapshot holds the lines, tapped lines and the cleared flag).
+
+### 5.3 Tap bar lines (Transcribe tab)
+
+Button "● Tap bar lines" in the toolbar. Tapping is independent of the form (how many bars the transcription covers). It plays the recording from the cursor and the player presses **Enter** on beat 1 of every bar, from before the solo (to find the groove) through someone else's solo, as long as they like. Taps are shown as dashed blue lines numbered t1, t2, ...; a tap less than 0.31 s after the previous one is ignored. Backspace undoes a tap, Space pauses / resumes without leaving tap mode, Esc (the button again, or the end of the recording) finishes; starting tap mode clears any stale stop time.
+
+On finishing, a panel asks "Bar 1 of this song's form is tap # [n]" (default: the tap nearest the current first bar line; the window of taps is previewed in gold on the timeline). By default Apply commits only the form's own bars (the taps from the chosen one on, `n + 1` lines) and drops the other taps; the panel's "keep the taps outside the form" box keeps them all. Apply sends `PUT /api/align/{work}/tap-lines {lines, start}`: the server keeps the tapped lines it is given in `align.json` (`tap_lines`, `tap_start`) and sets the form's `n + 1` bar lines to the taps from `start` on (if fewer were tapped the window continues at the last bar length, and the panel says so). Later edits of the bar lines (drag, nudge, Set beat one) write through to the same window of `tap_lines`; lines outside the window stay dashed on the timeline for later (for example a second solo). Undo restores both. Taps land slightly late (reaction plus audio latency): the ◀ ▶ nudge fixes that for the whole grid.
+
+**Chorus finder.** After tapping, `POST /api/align/{work}/chords/choruses` aligns the bass of every tapped bar to the chart with a Viterbi pass over states (chart bar 1..L, tag bar on the last chord, outside), in all 12 transpositions (the key from the form wins ties). It tolerates bars that do not match, one skipped or repeated bar, tags of any length, and non-tune stretches; the recording is not assumed to equal the chart. It returns the choruses (start tap, chart bars, tag bars, share of bass bars matching) and the median tag length. The Apply panel lets the user choose the first chorus, the number of choruses and the tag length; `POST .../chords/apply-choruses` rewrites form.json (chart plus tag bars as the chorus, `choruses` = count, `chorus_source`) and sets the bar lines from the taps. Manual "bar 1 by hand" remains.
+
+### 5.2 Managing saved transcriptions
+
+`GET /api/works/disk` lists every folder under `library/works` (title, artist, source URL, YouTube video id, audio present, transcription engines, whether `align.json` exists, size in MB, last change, and `same_video_as` for folders imported from the same video). `DELETE /api/align/{work}` removes the folder (name checked to be a direct child of `library/works`; refused with 409 while a transcription job for it runs) and drops it from the server cache. Licks already sent to the library are separate files and stay. UI: Transcribe tab, "Saved transcriptions on this computer" (Open / Delete with confirm), and a Delete button beside the song menu in the bar editor.
 
 ## 6. Licks page (formerly Today)
 
-Shows today's session: first **reviews that are due** (most overdue first, capped by `max_reviews`, default 20), then **new licks** (`new_per_day`, default 2; favourites first).
+Shows today's session in this order:
+1. **Focus**: licks whose last rating was Hard or Again, capped at `focus_cap` (default 4, about what an hour of practice holds). Licks you picked yourself come first: if you practise a lick that was not in the day's plan and rate it Hard/Again, it is marked *mine* (`cards.chosen`, set from `reviews.planned`) and outranks the schedule's picks until you rate it Good or Easy; among them the most recently practised first, so you stay with the same small group. More than `focus_cap` are allowed (you may pick many); the extra ones wait in a collapsed "Waiting" list and move up as slots free.
+2. **Due**: reviews that are going well (last rating Good/Easy), most overdue first, capped by `max_reviews` (default 20).
+3. **New licks** (`new_per_day`, default 2; favourites first), held back while any lick is still Hard/Again (`hold_new`, default on).
+
+**What "Good" means, and which keys.** A lick is not rated in 12 keys at once. Each lick has a *working set* of keys (`cards.scope`, pitch classes), starting with `good_def.starter_keys` (default 2) in "my order" (the lick's own key, then `my_steps`, then the cycle of 4ths). Practice shows only those keys (a checkbox adds the others without changing the rating; hard-key sessions always use all). The definition of Good is configurable in Settings (`good_def`): `clean_passes` (default 2, clean passes in a row in every key of the set, i.e. "times per key"), `min_tempo` (bpm every key of the set must reach, 0 = none), `sessions` (default 2, Good ratings in a row before keys are added), `add_keys` (default 1), `stuck_after` (default 4 Hard/Again in a row) and `shelve_days` (default 21). The practice screen states the definition and, when the pass meets it (every key of the set played, none marked hard, enough passes, tempo reached), outlines the Good button; the rating itself stays yours.
+- Rating Good/Easy records every key of the set as *known* (`cards.known`: key → date, tempo, passes and minimum tempo in force then) and counts toward `sessions`; reaching it adds `add_keys` keys to the set and brings the lick back the next day, because the new key is new material.
+- Rating Hard/Again `stuck_after` times in a row shelves the lick for `shelve_days` and cuts its set back to one key (a known one if any). Shelved licks sit in a collapsed list on the Licks page with a "Bring back" button; they are left out of the plan until the date.
+- Every review stores the set it covered and the definition in force (`reviews.scope`, `reviews.good_def`). Licks list rows, the practice header and the lick window show "Working on …, Good in …, N keys not learned", so a lick that is Good in two keys never reads as known in all twelve. "Choose keys…" on the practice screen (`POST /api/licks/{id}/scope`) sets the set by hand, e.g. two new keys to learn quickly, and restarts the Good count; `POST /api/licks/{id}/unshelve` brings a shelved lick back.
 
 Top: three stat cards, "due for review", "new today", "practised today"; a primary **Start session (N)** button that opens practice on the first item and moves through the list.
 
@@ -211,7 +239,7 @@ A lick is reduced to a melodic shape: the interval from each note to the next pl
 
 Opened from Today/Library. Shows the lick in the current key and a strip of the 12 keys.
 
-- **Key order** (`key_order` setting): `mine` = original key, up a 4th, up a 5th, down a whole step, then the remaining keys by the cycle of 4ths; or plain cycle of 4ths/5ths, chromatic. `my_steps` default `[0, 5, 7, -2]` semitones.
+- **Key order** (`key_order` setting): `common` = the lick's own key, then the keys by how many standards use them (concert F/Dm, Eb/Cm, C/Am, Bb/Gm, G/Em, Ab/Fm, Db/Bbm, D/Bm, Gb/Ebm, E/C#m, B/G#m, A/F#m, from a count of about 1,000 Real Book tunes with each major key and its relative minor together; a minor lick moves between minor keys). It also decides the order keys join a lick's working set (see Good). `mine` = original key, up a 4th, up a 5th, down a whole step, then the remaining keys by the cycle of 4ths; or plain cycle of 4ths/5ths, chromatic. `my_steps` default `[0, 5, 7, -2]` semitones.
 - **Range**: each key's lick is shifted by whole octaves into the player's written range (`range_low` 54 = F♯3, `range_high` 84 = C6). If it cannot fit, that key is flagged.
 - **Cycle** (one "Play" pass): count-in (`lead_in` bars; side stick on every beat, accent on beat 1; default 1 bar, 0 allowed) → the lick → "your turn" (the same number of bars with only the band, when `call_response` is on) → repeat `reps_per_key` times (default 2) → move to the next key (unless `stay_in_key` keeps looping until the player moves on).
 - **Backing band** (`backing`, `backing_style`: `band` = piano + bass + drums, or `piano` = chords only): generated per chord symbol of the lick (§13).
@@ -228,7 +256,7 @@ Opened from Today/Library. Shows the lick in the current key and a strip of the 
 
 `Scheduler(desired_retention=<setting, default 0.9>, learning_steps=(), relearning_steps=(), maximum_interval=365, enable_fuzzing=True)`. No minute-level steps: the shortest interval is one day, because practice is a once-a-day activity. "Due today" means due before the end of the local day.
 
-Today's session = due cards sorted most-overdue first (limited), then new licks (favourites first) up to `new_per_day`, minus those already introduced today.
+Today's session: see section 6 (capped focus of Hard/Again licks with your own picks first, then due reviews that are going well, then new licks held back while anything is Hard/Again).
 
 ---
 
@@ -306,6 +334,10 @@ Shows the chart in a grid, with **ii–V–I's and turnarounds marked** (`tune_s
 
 ### 11.3 Fit my licks
 
+**Minor versions.** `fit.minor_variant(lick)` turns a major ii–V or ii–V–I lick into its minor twin: chords m7 → m7♭5, 7 → 7♭9, maj → m6; chord-relative 5th of ii, 9th and 3rd of V, 3rd and 7th of I drop a half step; same rhythm. Candidates and placements carry `variant: "minor"`; the label ends "(minor version)". `/api/fit` accepts `variants` (default true) and `only_ids`.
+
+**Drill in a tune.** The end-of-session buttons (`DRILL_TUNES` in app.js: Autumn Leaves, Tune Up, Solar, I Got Rhythm, Oleo, Blue Bossa, All The Things You Are) open the Play tab on that tune and runs the fit with `only_ids` = the licks just practised. **Demo, then my turn** alternates choruses: licks + band (demo), then band only (your turn), repeating.
+
 `fits_at(lick, tune, start_beat)`: a lick fits at a bar when, after transposing by some semitone shift 0–11, **every chord in the lick matches the tune's chord over the same beats** (same root, same chord family: major / minor / dominant / half-diminished / diminished), up to the beat where the lick's last note ends. `candidates` returns, per bar index, candidates sorted best first (favourites and licks being learned first; `pool` = favourites and/or today's exercise). `plan_tune` walks the tune and places a lick wherever one fits.
 
 UI: the chart with a small notation snippet over each placed bar; click any bar for a menu to choose another candidate or clear it; **Play** the tune with the band (swung); **Save practice MusicXML** builds a whole-tune concert-pitch score with the chosen licks transposed and octave-fitted, other bars as whole-bar rests, labelled like "Chet Baker Tenderly (F)". Plans are stored in `plans`.
@@ -354,6 +386,8 @@ UI: the chart with a small notation snippet over each placed bar; click any bar 
 | `my_steps` | [0, 5, 7, −2] | semitone steps for "my order" |
 | `new_per_day` | 2 | |
 | `max_reviews` | 20 | |
+| `focus_cap` | 4 | Hard/Again licks in one day's plan |
+| `hold_new` | true | No new licks while any lick is Hard/Again |
 | `desired_retention` | 0.9 | FSRS target |
 | `tempo` | 120 | quarter-note BPM |
 | `start_tempo` | 60 | first tempo in a new key |

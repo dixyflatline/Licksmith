@@ -52,6 +52,14 @@ const pretty = s => esc(s || "").replace(/^([A-G])b/, "$1♭").replace(/^([A-G])
 const written = () => (S.settings || {}).display !== "concert";
 const showSym = s => pretty(written() ? transposeSym(s, 2) : s);
 const keyText = l => pretty((written() ? transposeSym(l.tonic_name, 2) : l.tonic_name) + (l.mode === "minor" ? "m" : ""));
+// The keys of a lick: the working set, and the keys that have been Good (so a lick that is Good in two keys never looks "known" in all 12).
+const GOOD_TEXT = gd => `Good means ${gd.clean_passes} clean pass${gd.clean_passes == 1 ? "" : "es"} in a row in every key of your set${gd.min_tempo ? ` at ${gd.min_tempo} bpm or faster` : ""}. ${gd.sessions} Good rating${gd.sessions == 1 ? "" : "s"} in a row add${gd.sessions == 1 ? "s" : ""} ${gd.add_keys} more key${gd.add_keys == 1 ? "" : "s"}; ${gd.stuck_after} Hard/Again in a row shelves the lick for ${gd.shelve_days} days.`;
+const keysLine = l => {
+  const known = (l.known_labels || []).map(k => k.key), set = l.scope_labels || [];
+  if (!set.length) return "";
+  const n = known.length;
+  return `<div class="small muted" title="${esc((l.known_labels || []).map(k => `${k.key}: Good on ${k.on}${k.bpm ? " at " + k.bpm + " bpm" : ""}`).join("; "))}">Working on ${esc(set.join(", "))}${n ? ` · Good in ${esc(known.join(", "))}` : " · not Good in any key yet"}${n && n < 12 ? ` · ${12 - n} key${12 - n === 1 ? "" : "s"} not learned` : ""}</div>`;
+};
 const stateBadge = st => `<span class="badge ${esc(st)}">${esc(st)}</span>`;
 function dueText(iso) {
   if (!iso) return "";
@@ -103,19 +111,20 @@ const VIEWS = {};
 async function go(tab) {
   if (tab === "align") tab = "transcribe";  // the page used to be called Align
   if (tab === "today") tab = "licks";        // the Today tab is now called Licks
-  if (S.tab === "transcribe" && tab !== "transcribe" && window.__alCleanup) window.__alCleanup();
+  if (tab === "tunes") tab = "play";         // the Tunes tab is now called Play
+  if ((S.tab === "transcribe" || S.tab === "learn") && tab !== S.tab && window.__alCleanup) window.__alCleanup();
   if (tab !== "practice" && Band.sequencer.running) Band.sequencer.stop(true);
   S.tab = tab;
   $$("nav.tabs a").forEach(a => a.classList.toggle("active", a.dataset.tab === tab));
   main().innerHTML = `<div class="empty spin">Loading…</div>`;
   try { await (VIEWS[tab] || VIEWS.routine)(); }
   catch (e) { main().innerHTML = `<div class="card"><b>Something went wrong.</b><p class="muted">${esc(e.message)}</p></div>`; }
-  renderDock(tab);
 }
 window.addEventListener("hashchange", () => {
   let t = location.hash.slice(1) || "routine";
   if (t === "align") t = "transcribe";
   if (t === "today") t = "licks";
+  if (t === "tunes") t = "play";
   if (t !== S.tab) go(t);
 });
 // Back / forward. A tab is a history entry (its #hash); so is an open lick window ({lick, tab}) and a practice session
@@ -142,6 +151,7 @@ window.addEventListener("popstate", async e => {
   let t = location.hash.slice(1) || "routine";
   if (t === "align") t = "transcribe";
   if (t === "today") t = "licks";
+  if (t === "tunes") t = "play";
   if (t !== S.tab || modal) go(VIEWS[t] ? t : "routine");
 });
 function wireNavArrows() {
@@ -162,31 +172,37 @@ async function svgFor(lickId, pc) {
 /* ---------------------------------------------------------------- Licks (was Today) */
 VIEWS.licks = async () => {
   const [t, hard] = await Promise.all([api("/api/today"), api("/api/hard").catch(() => ({ licks: [], by_key: {} }))]);
-  const queue = [...t.due, ...t.new];
+  const queue = [...t.focus, ...t.due, ...t.new];
+  const mine = new Set(t.chosen);
   const row = (l, kind) => `
     <div class="lick-item">
       ${playBtn("data-listen", l.id)}
       <div class="num">#${l.number}</div>
       <div class="grow"><div class="title">${esc(l.label)}</div>
-        <div class="small muted">from the key of ${keyText(l)}</div>
+        <div class="small muted">from the key of ${keyText(l)}</div>${keysLine(l)}
         <div>${tagChips(l, 6)}</div></div>
+      ${kind === "focus" || kind === "wait" ? `<span class="badge" title="${mine.has(l.id) ? "You started this one yourself and rated it Hard or Again: it comes first" : "Chosen by the schedule"}">${mine.has(l.id) ? "mine" : "hard"}</span>` : ""}
       ${stateBadge(kind === "new" ? "new" : l.state)}
-      <button data-practice="${l.id}">Practice</button>
+      ${kind === "shelf" ? `<span class="muted small">until ${esc(l.shelved_until)}</span><button data-unshelve="${l.id}">Bring back</button>` : `<button data-practice="${l.id}">Practice</button>`}
     </div>`;
   main().innerHTML = `
     <h1>Licks</h1>
-    <p class="sub">Today's session: reviews the forgetting curve says are due, then new licks${t.new_remaining > t.new.length ? ` (${t.new_remaining} new licks waiting)` : ""}.</p>
+    <p class="sub">Today's session: a small focus of hard licks first, then reviews that are going well${t.new_held ? `. New licks wait (${t.new_remaining}) until the hard ones are rated Good` : t.new_remaining > t.new.length ? ` (${t.new_remaining} new licks waiting)` : ""}.</p>
     <div class="hero">
+      <div class="tile"><div class="n">${t.focus.length}</div><div class="l">hard, in focus</div></div>
       <div class="tile"><div class="n">${t.due.length}</div><div class="l">due for review</div></div>
       <div class="tile"><div class="n">${t.new.length}</div><div class="l">new today</div></div>
       <div class="tile"><div class="n">${t.done_today.length}</div><div class="l">practised today</div></div>
       <div class="grow"></div>
       <div class="row">${queue.length ? `<button class="primary big" id="startSession">Start session (${queue.length})</button>` :
-        `<div class="muted">Nothing due. <a href="#library">Pick a lick</a> or <a href="#tunes">fit licks to a tune</a>.</div>`}
+        `<div class="muted">Nothing due. <a href="#library">Pick a lick</a> or <a href="#play">fit licks to a tune</a>.</div>`}
         ${hard.licks.length ? `<button class="big" id="hardSession" title="Only the keys you marked hard, in the licks where you marked them">Practice hard keys (${hard.licks.length} lick${hard.licks.length === 1 ? "" : "s"})</button>` : ""}</div>
     </div>
+    ${t.focus.length ? `<h2>Focus</h2><p class="small muted">${t.focus_total} hard lick${t.focus_total === 1 ? "" : "s"} for today. Get these to Good before anything new.</p><div class="lick-list">${t.focus.map(l => row(l, "focus")).join("")}</div>` : ""}
     ${t.due.length ? `<h2>Due</h2><div class="lick-list">${t.due.map(l => row(l, "due")).join("")}</div>` : ""}
     ${t.new.length ? `<h2>New</h2><div class="lick-list">${t.new.map(l => row(l, "new")).join("")}</div>` : ""}
+    ${t.shelved.length ? `<details style="margin-top:14px"><summary class="muted">Shelved: ${t.shelved.length} lick${t.shelved.length === 1 ? "" : "s"} resting after repeated Hard/Again (cut back to one key)</summary><div class="lick-list">${t.shelved.map(l => row(l, "shelf")).join("")}</div></details>` : ""}
+    ${t.backlog.length ? `<details style="margin-top:14px"><summary class="muted">Waiting: ${t.backlog.length} more hard lick${t.backlog.length === 1 ? "" : "s"} (today's focus is full)</summary><div class="lick-list">${t.backlog.map(l => row(l, "wait")).join("")}</div></details>` : ""}
     ${!queue.length && !t.done_today.length ? `<div class="card" style="margin-top:20px">
       <h3>Getting started</h3><p class="muted">Import a lick sheet (MusicXML from MuseScore) on the <a href="#import">Import</a> page.
       One file can hold many licks: start each with a text like <i>Lick 43, Blues, Major II V, taken from Chet Baker's 1956 Tenderly</i>
@@ -196,46 +212,13 @@ VIEWS.licks = async () => {
   const hs = $("#hardSession");
   if (hs) hs.onclick = () => startPractice(hard.licks.map(l => l.id), 0, { hardOnly: true });
   $$("[data-practice]").forEach(b => b.onclick = () => startPractice([+b.dataset.practice], 0));
+  $$("[data-unshelve]").forEach(b => b.onclick = async () => { await api(`/api/licks/${b.dataset.unshelve}/unshelve`, { method: "POST", body: {} }); VIEWS.licks(); });
   wireListen();
 };
 
 /* ---------------------------------------------------------------- Routine (daily practice checklist) */
 const localDay = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const newId = () => "i" + Math.random().toString(36).slice(2, 9);
-
-// Routine sections that have a tab of their own: the section is worked on in that tab, with its checklist shown there.
-const ROUTINE_TABS = { licks: { label: "Licks", re: /lick/i }, tunes: { label: "Tunes", re: /tune/i } };
-const routineTabOf = sec => Object.keys(ROUTINE_TABS).find(t => sec.id === t) || Object.keys(ROUTINE_TABS).find(t => ROUTINE_TABS[t].re.test(sec.title));
-
-// The checklist of this tab's routine section, docked above the page; "Done" goes back to the Routine.
-async function renderDock(tab) {
-  const dock = $("#routineDock");
-  if (!dock) return;
-  if (!ROUTINE_TABS[tab]) { dock.innerHTML = ""; return; }
-  const day = localDay();
-  let R;
-  try { R = await api(`/api/routine?day=${day}`); } catch (e) { dock.innerHTML = ""; return; }
-  if (S.tab !== tab) return;                      // the user already moved on
-  const sec = R.sections.find(x => routineTabOf(x) === tab);
-  if (!sec) { dock.innerHTML = ""; return; }
-  const done = new Set(R.checked);
-  const draw = () => {
-    const c = sec.items.filter(i => done.has(i.id)).length;
-    dock.innerHTML = `<div class="card rdock"><div class="row"><h3 class="grow">${esc(sec.title)} <span class="small muted">${c}/${sec.items.length} today</span></h3>
-      <button class="primary" id="rDone">Done — back to Routine</button></div>
-      ${sec.items.map(i => `<div class="ritem ${done.has(i.id) ? "done" : ""}"><label class="check"><input type="checkbox" data-ditem="${esc(i.id)}" ${done.has(i.id) ? "checked" : ""}> <span>${esc(i.text)}</span></label></div>`).join("")
-        || `<div class="muted small">No items in this section.</div>`}</div>`;
-    $$("[data-ditem]", dock).forEach(cb => cb.onchange = async () => {
-      const id = cb.dataset.ditem;
-      cb.checked ? done.add(id) : done.delete(id);
-      draw();
-      try { await api("/api/routine/check", { body: { day, item: id, done: cb.checked } }); }
-      catch (e) { toast(e.message); }
-    });
-    $("#rDone", dock).onclick = () => { location.hash = "#routine"; };
-  };
-  draw();
-}
 
 VIEWS.routine = async () => {
   const day = localDay();
@@ -264,7 +247,7 @@ VIEWS.routine = async () => {
       ${R.sections.map(sec => {
         const c = sec.items.filter(i => done.has(i.id)).length;
         return `<div class="card rsec"><div class="row"><h3 class="grow">${esc(sec.title)}</h3>
-          <span class="small muted">${c}/${sec.items.length}</span>${routineTabOf(sec) ? `<a class="btn" href="#${routineTabOf(sec)}">Open ${ROUTINE_TABS[routineTabOf(sec)].label} →</a>` : ""}</div>
+          <span class="small muted">${c}/${sec.items.length}</span></div>
           ${sec.items.map(i => `<div class="ritem ${done.has(i.id) ? "done" : ""}">
             <div class="row"><label class="check grow"><input type="checkbox" data-item="${esc(i.id)}" ${done.has(i.id) ? "checked" : ""}> <span>${esc(i.text)}</span></label>
               <button class="ghost small" data-note="${esc(i.id)}" title="Add a comment">${notes[i.id] ? "💬" : "＋ note"}</button></div>
@@ -390,7 +373,7 @@ async function loadPracticeLick() {
     sound: d.audio ? (cfg.sound ?? "rec") : "midi", resp: cfg.resp ?? st.call_response, back: cfg.back ?? st.backing,
     stay: cfg.stay ?? (st.stay_in_key !== false), swing: cfg.swing ?? Math.round(st.swing * 100), start_pc: cfg.start_pc ?? null,
   };
-  Object.assign(P, { lick: d, cfg: C, rep: 0, done: new Set(), trouble: new Set(), hard: new Set(d.hard_pcs || []), data: {}, kt: d.key_tempo || {} });
+  Object.assign(P, { lick: d, cfg: C, rep: 0, done: new Set(), trouble: new Set(), hard: new Set(d.hard_pcs || []), allKeys: false, data: {}, kt: d.key_tempo || {} });
   P.keys = prepKeys(d.keys);
   P.ki = Math.max(0, P.keys.findIndex(k => k.pc === C.start_pc));
   main().innerHTML = `
@@ -400,6 +383,10 @@ async function loadPracticeLick() {
         <h1>${esc(d.label)} <span class="star ${d.favorite ? "on" : ""}" id="pStar" title="Favorite">★</span></h1>
         <div>${tagChips(d, 12)}</div>
         ${d.comment ? `<div class="small muted" style="margin-top:6px">${esc(d.comment)}</div>` : ""}
+        ${keysLine(d)}
+        <label class="check small" title="Your set is the keys this lick has to be Good in before more keys join. Practising others does not change the rating."><input type="checkbox" id="pAll"> Also practise the other keys</label>
+        <button class="small" id="pPick" title="Choose which keys this lick is practised in">Choose keys…</button>
+        <div id="pPickBox" style="display:none;margin-top:8px"></div>
       </div>
       <div class="row">
         <select id="pOrder" title="Order of the keys">${Object.entries(S.meta.orders).map(([k, v]) => `<option value="${k}" ${k === C.order ? "selected" : ""}>${esc(v)}</option>`).join("")}</select>
@@ -425,6 +412,7 @@ async function loadPracticeLick() {
       <button id="pTrouble" title="Mark this key as hard (T)">Mark key hard</button>
     </div>
     <div class="card">
+      <div class="small muted" style="margin-bottom:6px">${esc(GOOD_TEXT(d.good_def))} <b id="pMeets"></b></div>
       <div class="row"><b>How did it go?</b><span class="muted small">Rate after you've been through the keys. Keys done: <span id="pDone">0</span>/${P.keys.length}</span>
       <div class="grow"></div><input id="pNote" placeholder="Note (optional)" style="width:300px"></div>
       <div class="rate">
@@ -436,7 +424,7 @@ async function loadPracticeLick() {
   showKey(P.ki);
   for (let i = 0; i < 4; i++) $("#pDots").appendChild(document.createElement("i"));
   $("#pTempo").oninput = e => $("#pTempoV").textContent = e.target.value;
-  $("#pTempo").onchange = () => saveKeyTempo();
+  $("#pTempo").onchange = () => { saveKeyTempo(); meetsGood(); };
   $("#pSlower").onclick = () => nudgeTempo(-st.tempo_step);
   $("#pFaster").onclick = () => nudgeTempo(st.tempo_step);
   $("#pNextKey").onclick = () => {
@@ -451,6 +439,30 @@ async function loadPracticeLick() {
     const on = !$("#pStar").classList.contains("on");
     await api(`/api/licks/${d.id}`, { method: "PATCH", body: { favorite: on ? 1 : 0 } });
     $("#pStar").classList.toggle("on", on);
+  };
+  $("#pAll").onchange = e => {
+    Band.sequencer.stop(true);
+    P.allKeys = e.target.checked; P.keys = prepKeys(d.keys); P.ki = 0; P.done = new Set(); P.trouble = new Set(); P.data = {};
+    $("#pStart").innerHTML = P.keys.map(k => `<option value="${k.pc}">${esc(k.label)}</option>`).join("");
+    renderKeys(); showKey(0); prefetch();
+  };
+  $("#pReps").addEventListener("change", meetsGood);
+  $("#pPick").onclick = () => {
+    const box = $("#pPickBox"), known = new Set((d.known_labels || []).map(k => k.key));
+    if (box.style.display === "") { box.style.display = "none"; return; }
+    const sel = new Set(d.scope || []);
+    box.style.display = "";
+    box.innerHTML = `<div class="small muted">Pick the keys to work on now (any number). The Good count starts again for the new set.</div>
+      <div class="row" style="flex-wrap:wrap;gap:6px;margin:6px 0">${d.keys.map(k => `<label class="check"><input type="checkbox" data-pc="${k.pc}" ${sel.has(k.pc) ? "checked" : ""}> ${esc(k.label)}${known.has(k.label) ? " ✓" : ""}</label>`).join("")}</div>
+      <button class="primary small" id="pPickSave">Use these keys</button> <span class="small muted">✓ = Good before</span>`;
+    $("#pPickSave").onclick = async () => {
+      const pcs = $$("#pPickBox [data-pc]").filter(c => c.checked).map(c => +c.dataset.pc);
+      if (!pcs.length) return toast("Pick at least one key");
+      Band.sequencer.stop(true);
+      await api(`/api/licks/${d.id}/scope`, { body: { scope: pcs } });
+      toast(`Working on ${d.keys.filter(k => pcs.includes(k.pc)).map(k => k.label).join(", ")}.`);
+      loadPracticeLick();
+    };
   };
   $("#pOrder").onchange = async e => {
     Band.sequencer.stop(true);
@@ -476,7 +488,8 @@ async function loadPracticeLick() {
 // Keys you marked hard come first (and, in a hard-keys session, are the only ones).
 function prepKeys(keys) {
   const P = S.practice, hard = k => P.hard.has(k.pc);
-  let ks = keys;
+  let ks = P.allKeys || P.hardOnly ? keys : keys.filter(k => (P.lick.scope || []).includes(k.pc));   // only the keys in this lick's set, unless you ask for all
+  if (!ks.length) ks = keys;
   if (P.hardOnly && ks.some(hard)) ks = ks.filter(hard);
   return [...ks.filter(hard), ...ks.filter(k => !hard(k))];
 }
@@ -568,6 +581,20 @@ function renderKeys() {
   });
   $("#pDone").textContent = P.done.size;
   syncTrouble();
+  meetsGood();
+}
+// Does this pass meet your definition of Good? Every key of the set played, none marked hard, enough passes, fast enough.
+function meetsGood() {
+  const P = S.practice, el = $("#pMeets"), gd = P.lick.good_def;
+  if (!el || !gd) return;
+  const inSet = P.keys.map((k, i) => [k, i]).filter(([k]) => (P.lick.scope || []).includes(k.pc));
+  const played = inSet.every(([, i]) => P.done.has(i)), clean = !inSet.some(([, i]) => P.trouble.has(i));
+  const passes = +$("#pReps").value >= gd.clean_passes;
+  const fast = !gd.min_tempo || inSet.every(([k, i]) => ((i === P.ki ? +$("#pTempo").value : 0) || P.kt[k.pc] || 0) >= gd.min_tempo);
+  const ok = played && clean && passes && fast;
+  el.textContent = ok ? "This pass meets it: Good." : !played ? "Not all keys of your set are played yet." : !clean ? "A key is marked hard." : !passes ? `Set times per key to ${gd.clean_passes} or more.` : "Some key is below the tempo.";
+  el.style.color = ok ? "var(--good, #2e7d32)" : "";
+  const g = document.querySelector("[data-rate='3']"); if (g) g.classList.toggle("suggest", ok);
 }
 
 async function showKey(i) {
@@ -714,10 +741,22 @@ async function rate(r) {
     }
   });
   if (cleared.length) toast(`${cleared.map(i => P.keys[i].label).join(", ")} no longer marked hard.`, 4000);
-  P.results.push({ lick: P.lick.label, rating: r, days: res.in_days });
-  toast(`Saved. Next review in ${Math.max(1, Math.round(res.in_days))} day${Math.round(res.in_days) > 1 ? "s" : ""}.`);
+  P.results.push({ id: P.lick.id, lick: P.lick.label, rating: r, days: res.in_days });
+  toast(res.expanded_labels && res.expanded_labels.length ? `Good again: ${res.expanded_labels.join(", ")} joins your set (now ${res.scope_labels.join(", ")}). See it again tomorrow.`
+    : res.shelved_until ? `Stuck: shelved until ${res.shelved_until}, cut back to ${res.scope_labels.join(", ")}.`
+    : `Saved. Next review in ${Math.max(1, Math.round(res.in_days))} day${Math.round(res.in_days) > 1 ? "s" : ""}.`, 5000);
   nextLick();
 }
+
+const DRILL_TUNES = [
+  ["Autumn Leaves", "Major and minor ii–V–I in two key centers (relative major/minor)"],
+  ["Tune Up", "Major ii–V–I cascading down a whole step: Dm7 G7 Cmaj7 / Cm7 F7 Bbmaj7 / Bbm7 Eb7 Abmaj7"],
+  ["Solar", "Minor tonic plus major ii–V–Is down a whole step to Eb, Db and back"],
+  ["I Got Rhythm", "Rhythm changes: I–vi–ii–V turnarounds, the bridge's dominant cycle, and the tag"],
+  ["Oleo", "Rhythm changes at speed, with the same turnarounds and dominant bridge"],
+  ["Blue Bossa", "Short minor ii–V–i, then a major ii–V a half step up"],
+  ["All The Things You Are", "ii–V–Is that move through many key centers"],
+];
 
 function nextLick() {
   const P = S.practice;
@@ -727,7 +766,16 @@ function nextLick() {
   main().innerHTML = `<h1>Session done</h1><p class="sub">${P.results.length} lick${P.results.length === 1 ? "" : "s"} rated.</p>
     <div class="lick-list">${P.results.map(x => `<div class="lick-item"><div class="grow">${esc(x.lick)}</div>
       <div>${names[x.rating]}</div><div class="muted">next in ${Math.max(1, Math.round(x.days))} d</div></div>`).join("")}</div>
-    <p><a class="btn" href="#licks">Back to Licks</a> <a class="btn" href="#tunes">Use them in a tune</a></p>`;
+    <p><a class="btn" href="#licks">Back to Licks</a></p>
+    <h3>Drill them in a tune</h3>
+    <p class="small muted">Fits only the licks you just practised, including minor versions of ii–V licks.</p>
+    <div class="lick-list">${DRILL_TUNES.map(([t, why]) => `<div class="lick-item"><div class="grow small muted">${esc(why)}</div>
+      <a class="btn" href="#play" data-drill="${esc(t)}">${esc(t)}</a></div>`).join("")}</div>`;
+  $$("[data-drill]").forEach(a => a.onclick = () => {
+    S.fit = { title: a.dataset.drill, tune: null, plan: null, placements: [] };
+    S.drillIds = P.results.map(x => x.id).filter(Boolean);
+    if (!S.drillIds.length) S.drillIds = P.ids.slice();
+  });
 }
 
 document.addEventListener("keydown", e => {
@@ -854,7 +902,7 @@ async function openLick(id, nav = "push") {
   bg.innerHTML = `<div class="modal">
     <button class="close ghost" id="mClose">✕</button>
     <h1>${esc(d.label)} <span class="star ${d.favorite ? "on" : ""}" id="mStar">★</span> <span class="chip">#${d.number}</span> ${stateBadge(d.state)}</h1>
-    <div style="margin:6px 0 12px">${tagChips(d)}</div>
+    <div style="margin:6px 0 12px">${tagChips(d)}${keysLine(d)}</div>
     <div class="row" style="margin-bottom:10px">
       <select id="mKey" title="Key for ▶ Play (the notes below stay as written for B♭ trumpet)">${d.keys.map(k => `<option value="${k.pc}">${esc(k.label)}${k.fits ? "" : " (out of range)"}</option>`).join("")}</select>
       <button id="mPlay">▶ Play</button>
@@ -1052,7 +1100,7 @@ VIEWS.import = async () => {
     if ($("#plFile").files[0]) fd.append("file", $("#plFile").files[0]);
     fd.append("text", $("#plText").value); fd.append("name", $("#plName").value);
     $("#plMsg").textContent = "Importing…";
-    try { const r = await api("/api/playlist", { body: fd }); $("#plMsg").innerHTML = `${r.imported} tunes imported. <a href="#tunes">Open Tunes</a>`; }
+    try { const r = await api("/api/playlist", { body: fd }); $("#plMsg").innerHTML = `${r.imported} tunes imported. <a href="#play">Open Play</a>`; }
     catch (e) { $("#plMsg").textContent = e.message; }
   };
 };
@@ -1125,30 +1173,40 @@ function renderImportPreview(p, target, banner = "") {
 }
 
 /* ---------------------------------------------------------------- Tunes */
-VIEWS.tunes = async () => {
+VIEWS.play = async () => {
   const tunes = await api("/api/tunes");
   main().innerHTML = `
-    <h1>Tunes</h1>
+    <h1>Play</h1>
     <p class="sub">${tunes.length} tunes from iReal. Pick one to see its harmony and fit your licks into it.</p>
     ${tunes.length ? "" : `<div class="card">No tunes yet. <a href="#import">Import an iReal playlist</a>.</div>`}
     <div class="tune-layout" ${tunes.length ? "" : 'style="display:none"'}>
       <div class="card"><input id="tSearch" placeholder="Search tunes" style="width:100%;margin-bottom:8px">
-        <label class="check small"><input type="checkbox" id="tLearning"> Only tunes I'm learning</label>
+        <div class="row" style="gap:10px;margin-bottom:6px"><label class="check small"><input type="checkbox" id="tLearning"> Only tunes I'm learning</label>
+          <label class="check small" title="Show only tunes in this key (iReal's home key of the tune)">Key <select id="tKey"></select></label></div>
         <div class="tune-list" id="tList"></div></div>
       <div id="tDetail"><div class="empty">Choose a tune</div></div>
     </div>`;
   if (!tunes.length) return;
+  const PCS = ["C", "Db", "D", "Eb", "E", "F", "F#", "Gb", "G", "Ab", "A", "Bb", "B"];
+  const keyRank = k => { const m = /^([A-G][b#]?)(.*)$/.exec(k || ""); return (m && m[2].startsWith("-") ? 100 : 0) + (m ? PCS.indexOf(m[1]) : 99); };
+  const keyCount = {};
+  tunes.forEach(t => { if (t.key) keyCount[t.key] = (keyCount[t.key] || 0) + 1; });
+  $("#tKey").innerHTML = `<option value="">All keys</option>` + Object.keys(keyCount).sort((a, b) => keyRank(a) - keyRank(b))
+    .map(k => `<option value="${esc(k)}">${showSym(k.replace("-", "m"))} (${keyCount[k]})</option>`).join("");
   const draw = () => {
-    const q = $("#tSearch").value.toLowerCase();
+    const q = $("#tSearch").value.toLowerCase(), key = $("#tKey").value;
     $("#tList").innerHTML = tunes.filter(t => (!q || t.title.toLowerCase().includes(q) || (t.composer || "").toLowerCase().includes(q))
-      && (!$("#tLearning").checked || t.learning)).slice(0, 400)
+      && (!$("#tLearning").checked || t.learning) && (!key || t.key === key)).slice(0, 400)
       .map(t => `<div data-t="${esc(t.title)}" class="${S.fit && S.fit.title === t.title ? "sel" : ""}">${t.learning ? "★ " : ""}${esc(t.title)}
-        <span class="small muted">${esc(t.composer || "")}</span></div>`).join("");
+        <span class="small muted">${esc(t.composer || "")}${t.key ? " · " + showSym(t.key.replace("-", "m")) : ""}</span></div>`).join("");
     $$("#tList [data-t]").forEach(el => el.onclick = () => { openTune(el.dataset.t); $$("#tList div").forEach(x => x.classList.remove("sel")); el.classList.add("sel"); });
   };
-  $("#tSearch").oninput = draw; $("#tLearning").onchange = draw;
+  $("#tSearch").oninput = draw; $("#tLearning").onchange = draw; $("#tKey").onchange = draw;
   draw();
-  if (S.fit && S.fit.title) openTune(S.fit.title, true);
+  if (S.fit && S.fit.title) {
+    const ids = S.drillIds; S.drillIds = null;
+    openTune(S.fit.title, true).then(() => { if (ids) runFit(S.fit.title, ids); }).catch(e => toast(e.message));
+  }
 };
 
 async function openTune(title, keepPlan) {
@@ -1262,10 +1320,11 @@ function barMenu(b) {
   });
 }
 
-async function runFit(title) {
+async function runFit(title, onlyIds) {
   $("#fOut").innerHTML = `<div class="empty spin">Matching licks to the changes…</div>`;
   const plan = await api("/api/fit", { body: { title, gap_bars: +$("#fGap").value,
-    pool: [$("#fFavs").checked ? "favorites" : "", $("#fToday").checked ? "today" : ""].filter(Boolean) } });
+    only_ids: onlyIds || null,
+    pool: onlyIds ? null : [$("#fFavs").checked ? "favorites" : "", $("#fToday").checked ? "today" : ""].filter(Boolean) } });
   S.fit.plan = plan;
   S.fit.placements = plan.placements;
   drawChart();
@@ -1279,11 +1338,12 @@ async function drawFit() {
     <div class="card" style="margin-top:14px">
       <div class="row"><h3 class="grow">${F.placements.length} lick${F.placements.length === 1 ? "" : "s"} placed · ${nSpots} bar${nSpots === 1 ? "" : "s"} where something fits</h3>
         <button class="primary" id="fPlay">▶ Play with band</button>
+        <button id="fDemo" title="Hear the licks (including the minor versions) played once, then the band plays alone while you play them">▶ Demo, then my turn</button>
         <div class="slider small muted">Tempo <input type="range" id="fTempo" min="60" max="320" value="${S.settings.tempo}"> <b id="fTempoV">${S.settings.tempo}</b></div>
         <button id="fSave">Download MusicXML</button></div>
       ${F.placements.length ? `<table class="placements"><tr><th>Bar</th><th>Lick</th><th>Key</th><th></th></tr>
       ${F.placements.map((p, i) => `<tr><td>${p.bar}</td><td><select data-pi="${i}">${(F.plan.candidates[p.bar - 1] || [p]).map((c, j) =>
-        `<option value="${j}" ${c.lick_id === p.lick_id ? "selected" : ""}>${esc(c.label)}</option>`).join("")}</select></td>
+        `<option value="${j}" ${c.lick_id === p.lick_id && (c.variant || "") === (p.variant || "") ? "selected" : ""}>${esc(c.label)}</option>`).join("")}</select></td>
         <td>${esc(p.key)}${p.fits_range ? "" : ' <span class="warn">range</span>'}</td><td><button class="ghost" data-del="${i}">Remove</button></td></tr>`).join("")}</table>`
         : `<p class="muted">No lick fits this tune's changes yet. Licks fit where the chords match beat for beat — e.g. a 1-bar ii–V lick needs a bar with two chords.</p>`}
       <p class="small muted">Click a bar in the chart to place a different lick there. Empty bars are yours to improvise.</p>
@@ -1296,7 +1356,8 @@ async function drawFit() {
   });
   $$("[data-del]").forEach(b => b.onclick = () => { F.placements.splice(+b.dataset.del, 1); drawChart(); drawFit(); });
   $("#fTempo").oninput = e => $("#fTempoV").textContent = e.target.value;
-  $("#fPlay").onclick = playTune;
+  $("#fPlay").onclick = () => playTune(false);
+  $("#fDemo").onclick = () => playTune(true);
   $("#fSave").onclick = async () => {
     try {
       const r = await fetch("/api/fit/file", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -1312,15 +1373,19 @@ async function drawFit() {
   catch (e) { $("#fSheet").textContent = e.message; }
 }
 
-async function playTune() {
+async function playTune(demo) {
   const seq = Band.sequencer;
   if (seq.running) { seq.stop(); return; }
   const data = await api("/api/fit/play", { body: { title: S.fit.title, placements: S.fit.placements } });
-  $("#fPlay").textContent = "■ Stop";
+  const btn = $(demo ? "#fDemo" : "#fPlay");
+  btn.textContent = "■ Stop";
   seq.start({
     tempo: () => +($("#fTempo") || { value: S.settings.tempo }).value, swing: () => S.settings.swing,
-    next: n => ({ seq: data, leadIn: n === 0 ? S.settings.lead_in : 0, playLick: true, backing: S.settings.backing_style || "band", response: false, info: {} }),
-    onStop: () => { const b = $("#fPlay"); if (b) b.textContent = "▶ Play with band"; },
+    // demo mode alternates: a chorus with the licks played for you, then a chorus of band only for your turn
+    next: n => ({ seq: data, leadIn: n === 0 ? S.settings.lead_in : 0, playLick: demo ? n % 2 === 0 : true,
+      backing: S.settings.backing_style || "band", response: false, info: { turn: demo && n % 2 === 1 } }),
+    onCycle: info => { if (demo && $("#fDemo")) $("#fDemo").textContent = info.turn ? "■ Your turn…" : "■ Demo…"; },
+    onStop: () => { const a = $("#fPlay"), b = $("#fDemo"); if (a) a.textContent = "▶ Play with band"; if (b) b.textContent = "▶ Demo, then my turn"; },
   });
 }
 
@@ -1396,6 +1461,15 @@ VIEWS.settings = async () => {
         <div class="grid cols-2">
           <label class="field">New licks per day<input id="sNew" type="number" min="0" value="${st.new_per_day}"></label>
           <label class="field">Max reviews per day<input id="sMax" type="number" min="1" value="${st.max_reviews}"></label>
+          <label class="field" title="Licks still rated Hard or Again that go into one day's plan. About 3-4 fit in an hour; the others wait.">Hard licks in focus<input id="sFocus" type="number" min="1" value="${st.focus_cap ?? 4}"></label>
+          <label class="field" title="On: no new licks are offered while any lick is still rated Hard or Again."><span>Hold new licks until hard ones are Good</span><input id="sHold" type="checkbox" ${st.hold_new !== false ? "checked" : ""}></label>
+          <label class="field" title="Clean passes in a row, in every key of the lick's set, for a Good rating">Good: clean passes<input id="sGPass" type="number" min="1" max="8" value="${(st.good_def || {}).clean_passes ?? 2}"></label>
+          <label class="field" title="Every key of the set must reach this tempo. 0 means no tempo requirement.">Good: minimum tempo (bpm)<input id="sGTempo" type="number" min="0" max="320" value="${(st.good_def || {}).min_tempo ?? 0}"></label>
+          <label class="field" title="Good ratings in a row before more keys join the set">Good ratings to add keys<input id="sGSess" type="number" min="1" value="${(st.good_def || {}).sessions ?? 2}"></label>
+          <label class="field" title="Keys joining the set each time">Keys added each time<input id="sGAdd" type="number" min="1" max="12" value="${(st.good_def || {}).add_keys ?? 1}"></label>
+          <label class="field" title="Keys a new lick starts with, in 'my order'">Starter keys per lick<input id="sGStart" type="number" min="1" max="12" value="${(st.good_def || {}).starter_keys ?? 2}"></label>
+          <label class="field" title="Hard or Again in a row before the lick is shelved and cut back to one key">Shelve after Hard/Again ×<input id="sGStuck" type="number" min="1" value="${(st.good_def || {}).stuck_after ?? 4}"></label>
+          <label class="field" title="How long a stuck lick rests">Shelve for (days)<input id="sGDays" type="number" min="1" value="${(st.good_def || {}).shelve_days ?? 21}"></label>
           <label class="field">Target recall (FSRS retention)<select id="sRet">${[0.8, 0.85, 0.9, 0.93, 0.95].map(v => `<option ${v === st.desired_retention ? "selected" : ""}>${v}</option>`).join("")}</select></label>
         </div>
         <p class="small muted">Higher recall means shorter gaps between reviews (more practice, fewer forgotten licks).</p>
@@ -1464,7 +1538,9 @@ VIEWS.settings = async () => {
     S.settings = await api("/api/settings", {
       method: "PUT", body: {
         display: $("#sDisplay").value, range_low: lo, range_high: hi, key_order: $("#sOrder").value, my_steps: steps,
-        new_per_day: +$("#sNew").value, max_reviews: +$("#sMax").value, desired_retention: +$("#sRet").value,
+        new_per_day: +$("#sNew").value, max_reviews: +$("#sMax").value, focus_cap: Math.max(1, +$("#sFocus").value || 4),
+        good_def: { clean_passes: +$("#sGPass").value || 2, min_tempo: +$("#sGTempo").value || 0, sessions: +$("#sGSess").value || 2, add_keys: +$("#sGAdd").value || 1,
+          starter_keys: +$("#sGStart").value || 2, stuck_after: +$("#sGStuck").value || 4, shelve_days: +$("#sGDays").value || 21 }, hold_new: $("#sHold").checked, desired_retention: +$("#sRet").value,
         tempo: +$("#sTempo").value, swing: +$("#sSwing").value / 100, lead_in: +$("#sLeadIn").value, reps_per_key: +$("#sReps").value,
         start_tempo: +$("#sStart").value, tempo_step: +$("#sStep").value, stay_in_key: $("#sStay").checked,
         play_lick: $("#sHear").checked, call_response: $("#sResp").checked, backing: $("#sBack").checked,
