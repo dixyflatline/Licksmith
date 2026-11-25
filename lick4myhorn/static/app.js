@@ -769,7 +769,8 @@ function nextLick() {
     <p><a class="btn" href="#licks">Back to Licks</a></p>
     <h3>Drill them in a tune</h3>
     <p class="small muted">Fits only the licks you just practised, including minor versions of ii–V licks.</p>
-    <p>${DRILL_TUNES.map(([t, why]) => `<a class="btn" href="#play" data-drill="${esc(t)}" title="${esc(why)}">${esc(t)}</a>`).join(" ")}</p>`;
+    <div class="lick-list">${DRILL_TUNES.map(([t, why]) => `<div class="lick-item"><div class="grow small muted">${esc(why)}</div>
+      <a class="btn" href="#play" data-drill="${esc(t)}">${esc(t)}</a></div>`).join("")}</div>`;
   $$("[data-drill]").forEach(a => a.onclick = () => {
     S.fit = { title: a.dataset.drill, tune: null, plan: null, placements: [] };
     S.drillIds = P.results.map(x => x.id).filter(Boolean);
